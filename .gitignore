@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.superpowers/
+node_modules/
+.next/
+dist/
+coverage/
+__pycache__/
+.pytest_cache/
+.venv/
+
