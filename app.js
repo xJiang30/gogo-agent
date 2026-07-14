@@ -1,4 +1,12 @@
 const STORAGE_KEY = "gogo-agent-flow-mvp";
+const browserConfig = window.__GOGO_ENV__ || {};
+const runtimeConfig = {
+  openAIApiKey: browserConfig.openAIApiKey || "",
+  openAIBaseUrl: browserConfig.openAIBaseUrl || "https://api.openai.com/v1",
+  openAIModel: browserConfig.openAIModel || "gpt-4.1-mini",
+};
+
+window.__GOGO_ENV__ = runtimeConfig;
 
 const defaultPrompt =
   "我想 9 月从上海出发去日本 5-6 天，两个人，预算 8000-10000，想要温泉、美食、自然风景，不想每天太赶。";
