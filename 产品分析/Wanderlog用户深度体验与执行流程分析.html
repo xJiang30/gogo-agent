@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wanderlog 用户深度体验与执行流程分析</title>
+  <style>
+    :root {
+      --bg:#eef3f6; --paper:#fff; --text:#17212b; --muted:#64717f;
+      --line:#d8e1e8; --soft:#f6f9fb; --accent:#ef5546;
+      --blue:#156fbb; --green:#0f8c68; --amber:#a76600;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;line-height:1.68}
+    .page{width:min(1180px,calc(100% - 32px));margin:32px auto;padding:44px;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 48px rgba(24,40,56,.08)}
+    .eyebrow{margin:0 0 8px;color:var(--accent);font-weight:700}
+    h1,h2,h3{margin:0 0 14px;line-height:1.28;color:#102033}
+    h1{font-size:34px;padding-bottom:20px;border-bottom:3px solid var(--accent)}
+    h2{margin-top:42px;font-size:25px}
+    h3{margin-top:28px;font-size:18px;color:#173b5f}
+    p{margin:0 0 16px}
+    a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(21,111,187,.25)}
+    .meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:24px 0 26px}
+    .meta-card,.panel{padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:8px}
+    .meta-card strong{display:block;margin-bottom:4px;font-size:13px;color:var(--muted)}
+    .summary,.note{padding:18px 20px;margin:24px 0;border-radius:8px}
+    .summary{background:#fff7f5;border:1px solid #ffd7d1;border-left:5px solid var(--accent)}
+    .note{background:#f3fbf7;border:1px solid #cbe5d9;border-left:5px solid var(--green)}
+    .figure{margin:22px 0 28px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+    .figure img{display:block;width:100%;height:auto;background:#f2f4f7}
+    .caption{padding:12px 16px;color:var(--muted);font-size:14px;background:var(--soft);border-top:1px solid var(--line)}
+    .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:18px 0 26px}
+    ul,ol{margin:0 0 18px 24px;padding:0} li{margin:6px 0}
+    .flow{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:18px 0 26px}
+    .flow-step{min-height:92px;padding:14px;border:1px solid var(--line);border-radius:8px;background:#fff}
+    .flow-step b{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin-bottom:10px;border-radius:999px;background:var(--accent);color:#fff;font-size:13px}
+    .table-wrap{overflow-x:auto;margin:18px 0 26px;border:1px solid var(--line);border-radius:8px}
+    table{width:100%;min-width:760px;border-collapse:collapse;font-size:14px}
+    th,td{padding:11px 13px;vertical-align:top;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+    th:last-child,td:last-child{border-right:0} tr:last-child td{border-bottom:0}
+    th{text-align:left;color:#173b5f;background:var(--soft)}
+    .ok{color:var(--green);font-weight:700}.risk{color:var(--amber);font-weight:700}.fix{color:var(--blue);font-weight:700}
+    code{padding:2px 6px;border-radius:4px;background:#eaf4ff;font-family:Consolas,monospace;font-size:.92em}
+    @media(max-width:920px){.page{width:100%;margin:0;padding:26px 18px;border-radius:0}.meta,.grid-2,.flow{grid-template-columns:1fr}h1{font-size:27px}h2{font-size:22px}}
+  </style>
+</head>
+<body>
+<main class="page">
+  <p class="eyebrow">Wanderlog UX Flow Analysis</p>
+  <h1>Wanderlog 用户深度体验与执行流程分析</h1>
+
+  <section class="meta">
+    <div class="meta-card"><strong>分析对象</strong>创建行程、概览、定制行程、地点详情</div>
+    <div class="meta-card"><strong>分析日期</strong>2026-06-23</div>
+    <div class="meta-card"><strong>页面来源</strong>用户截图、页面链接、公开页面核验</div>
+    <div class="meta-card"><strong>分析目标</strong>识别使用过程中的顺畅点、卡点与改进机会</div>
+  </section>
+
+  <section class="summary">
+    <p><strong>分析口径：</strong>本报告基于用户提供的截图和链接，从一个真实用户深度体验 Wanderlog 的角度，拆解创建旅行、概览、定制行程、地图联动、地点详情和酒店预订导流中的执行流程与体验卡点。</p>
+  </section>
+
+  <h2>1. 用户使用流程地图：从行前灵感到行后分享</h2>
+  <p>Wanderlog 的产品体验不是单点功能，而是覆盖旅行前、旅行中、旅行后的连续流程。不同阶段用户的目标不同，会自然调用不同模块：早期更依赖探索和攻略，中期进入行程编排与预订确认，旅途中需要导航、查看、记录和调整，行后则可以整理、分享或复盘。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>阶段</th>
+          <th>用户目标</th>
+          <th>典型动作</th>
+          <th>对应功能/模块</th>
+          <th>体验关注点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1. 行前灵感与粗规划</td>
+          <td>先判断去哪、玩什么、哪些地点值得收藏。</td>
+          <td>浏览旅游指南、查看推荐地点、阅读网上相关文章、收集餐厅/景点。</td>
+          <td>探索、指南详情、景点候选池、自定义模块、地点详情里的“提到” Tab、Chrome 扩展添加地点。</td>
+          <td>这一阶段不应过早要求用户排日期；重点是降低从“没想法”到“有候选地点”的门槛。</td>
+        </tr>
+        <tr>
+          <td>2. 行程精编排</td>
+          <td>把候选地点变成按天执行的行程。</td>
+          <td>创建 trip、添加地点、自动填充日程、拖拽排序、智能优化路线、移动/复制/删除地点。</td>
+          <td>创建新行程、行程页、自动填充日程、优化路线、每日菜单、批量选择、地图路线。</td>
+          <td>用户需要明确哪些地点只是候选，哪些已经进入正式日程；路线优化要给出可信反馈。</td>
+        </tr>
+        <tr>
+          <td>3. 预订与确认</td>
+          <td>把酒店、交通、门票和确认单接入旅行计划。</td>
+          <td>预订酒店、导入航班/住宿/租车/火车邮件、添加附件、查看地点预订选项。</td>
+          <td>预订和附件、住宿提醒、酒店搜索、地点详情“预订” Tab、Gmail 同步、邮件转发、附件。</td>
+          <td>需要区分“站内预订、外部跳转、导入已有预订、管理确认单”这几种不同动作。</td>
+        </tr>
+        <tr>
+          <td>4. 旅途使用</td>
+          <td>按当天计划执行，快速查看去哪、怎么去、几点开放。</td>
+          <td>查看当日行程、点开地点详情、查看营业时间/地址/电话/官网、确认是否已访问。</td>
+          <td>每日行程、地点信息卡片、关于/评论/照片 Tab、标记已访问、外部网页跳转。</td>
+          <td>旅途中用户时间紧，界面应突出“下一站、开放状态、导航入口、关键注意事项”。</td>
+        </tr>
+        <tr>
+          <td>5. 导航与查看</td>
+          <td>根据地图路线移动，并在网络不稳定时仍能查看计划。</td>
+          <td>查看地图路线、打开 Google 地图、导出路线、使用移动端或离线访问。</td>
+          <td>右侧地图、路线优化、Google 地图跳转/导出、移动端、Pro 离线访问。</td>
+          <td>地图和行程顺序必须保持一致；离线场景要保证核心信息可访问。</td>
+        </tr>
+        <tr>
+          <td>6. 实时记录与调整</td>
+          <td>旅行中随时修改计划、记录花费和补充资料。</td>
+          <td>拖动调整地点顺序、移动到其他日期、添加费用、添加附件、添加时间、写笔记。</td>
+          <td>拖拽排序、批量操作、地点内联操作、费用添加、笔记、附件、预算模块。</td>
+          <td>修改动作要低成本，并且同步到地图、预算和行程清单，避免信息不一致。</td>
+        </tr>
+        <tr>
+          <td>7. 行程后整理与分享</td>
+          <td>整理旅行记录、结算费用、分享行程或复盘。</td>
+          <td>查看费用明细、团体结算、导出 CSV、分享计划、加入游记。</td>
+          <td>预算总览、团体余额、费用设置、CSV 导出、分享、添加到游记。</td>
+          <td>行后价值取决于记录是否完整；如果旅途中没有顺手记录，行后整理成本会很高。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section class="note">
+    <p><strong>总体判断：</strong>Wanderlog 试图覆盖完整旅行生命周期，但不同阶段的用户心智差异很大。行前用户需要探索和粗规划，行程编排用户需要效率和路线反馈，旅途中用户需要快速查看和低成本记录，行后用户需要结算与分享。因此产品的核心挑战不是功能够不够，而是能否在正确阶段露出正确功能，避免把重度能力过早压给轻量用户。</p>
+  </section>
+
+  <h2>2. 创建新行程</h2>
+  <figure class="figure">
+    <img src="wanderlog_create_trip.png" alt="Wanderlog 创建新行程页面截图">
+    <figcaption class="caption">图 1：创建新行程页。当前创建流程主要采集目的地和日期，用户点击后进入旅行计划工作台。</figcaption>
+  </figure>
+  <div class="grid-2">
+    <section class="panel">
+      <h3>页面目标</h3>
+      <p>当前创建流程用很轻的表单让用户快速生成一个新的 trip，核心信息只有目的地和旅行日期。它支持国家级和城市级目的地，例如 Japan 或 Tokyo；但一次只能创建一个目的地，后续需要在工作台继续补充城市、地点和路线。</p>
+    </section>
+    <section class="panel">
+      <h3>核心卡点</h3>
+      <p>创建页只承接了“去哪里”和“什么时候去”，没有很好地承接用户的个人喜好。但旅行规划的目标不是简单创建一个空行程，而是让旅行更贴合用户偏好。用户一开始可能连要去哪些景点都不知道，因此产品应该在创建阶段快速抓取偏好，并给出一个可参考的初步行程方向。</p>
+    </section>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>当前采集信息</th><th>缺失信息</th><th>对体验的影响</th><th>建议</th></tr></thead>
+      <tbody>
+        <tr><td>目的地</td><td>旅行兴趣：自然、城市、亲子、美食、购物、文化、主题乐园等。</td><td>系统知道用户要去哪里，但不知道用户为什么去、想怎么玩。</td><td>目的地输入后增加轻量偏好选择，最多 3-5 个标签。</td></tr>
+        <tr><td>日期</td><td>旅行节奏：轻松、紧凑、深度、打卡式、带老人/小孩等。</td><td>系统知道旅行天数，但不知道每天应该排多满。</td><td>用一个节奏选择器影响自动推荐和路线密度。</td></tr>
+        <tr><td>国家/城市级目的地</td><td>用户对目的地熟悉程度：第一次去、已去过、只想补充新地点。</td><td>初次用户更需要推荐，熟悉用户更需要高级筛选。</td><td>增加“我还不知道去哪 / 我已有想去的地方”分流。</td></tr>
+        <tr><td>创建按钮</td><td>创建后预期：手动规划、AI 生成初稿、导入预订。</td><td>用户进入工作台后可能面对太多模块，不知道第一步做什么。</td><td>创建后直接提供三个起步动作：生成初稿、添加地点、导入预订。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <section class="note">
+    <p><strong>产品判断：</strong>创建新行程不应只是“建一个空容器”，而应该是用户偏好的第一次采样。更理想的流程是：目的地 + 日期 + 轻量偏好 -> 自动生成一个可编辑的初步行程 -> 用户再通过拖拽、删除、添加地点进行精修。这样可以更好地承接“我想去旅行，但还不知道怎么安排”的真实需求。</p>
+  </section>
+
+  <h2>3. 旅行计划工作台</h2>
+  <figure class="figure">
+    <img src="wanderlog_trip_workspace.png" alt="Wanderlog 旅行计划工作台截图">
+    <figcaption class="caption">图 2：工作台由左侧导航、中间任务区和右侧地图组成。</figcaption>
+  </figure>
+  <p>工作台不是单纯行程表，而是旅行规划操作台。左侧是 trip 的信息架构，中间是任务执行区，右侧地图承接空间判断和路线反馈。风险在于：从极简创建页跳到复杂工作台，信息密度突然升高，新用户可能不知道第一步该做什么。</p>
+
+  <h2>4. 概览功能深度拆解</h2>
+  <p>概览是 trip 的入口聚合页，包含探索、预订和附件、预算总览、笔记、景点、自定义模块等。它的价值是把旅行素材集中到一起，但也容易与下方正式行程产生重复感。</p>
+
+  <h3>4.1 探索：从内容推荐到行程动作</h3>
+  <figure class="figure">
+    <img src="wanderlog_overview_explore.png" alt="Wanderlog 概览页探索模块截图">
+    <figcaption class="caption">图 3：探索模块以卡片展示旅游指南、目的地攻略、酒店推荐等内容。</figcaption>
+  </figure>
+  <p>探索模块降低空白 trip 的启动压力。用户可以从推荐指南进入详情页，再把景点和餐厅加入行程。卡点是酒店推荐、攻略内容和地点推荐混在同一轮切中，信息类型差异较大。</p>
+
+  <h3>4.2 指南详情：内容阅读、地点选择与地图联动</h3>
+  <figure class="figure">
+    <img src="wanderlog_guide_detail_map.png" alt="Wanderlog 指南详情页与地图联动截图">
+    <figcaption class="caption">图 4：指南详情页左侧是地点列表，右侧地图同步展示地点分布和详情卡片。</figcaption>
+  </figure>
+  <p>指南详情页把“阅读攻略”转成“添加地点”的动作，这是 Wanderlog 相比普通攻略内容的关键价值。用户可以通过地图判断地点分布，再选择加入景点列表或具体日期。</p>
+
+  <h3>4.3 预订和附件</h3>
+  <figure class="figure">
+    <img src="wanderlog_booking_budget_cards.png" alt="Wanderlog 概览页预订和附件截图">
+    <figcaption class="caption">图 5：预订和附件包含航班、住宿、租车、火车、附件和其他；右侧展示预算总览。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_booking_more_menu.png" alt="Wanderlog 预订和附件更多菜单截图">
+    <figcaption class="caption">图 6：更多菜单扩展出餐厅、巴士、渡轮、游轮、附件等类型。</figcaption>
+  </figure>
+  <p>预订和附件承担“确定性信息管理”。它把机票、酒店、租车、火车票、附件和其他凭证集中到 trip 中。优点是覆盖范围完整；卡点是“附件”和“其他”的边界不够直观。</p>
+
+  <h3>4.4 笔记：承接非结构化旅行信息</h3>
+  <figure class="figure">
+    <img src="wanderlog_overview_notes_menu.png" alt="Wanderlog 笔记模块菜单截图">
+    <figcaption class="caption">图 7：笔记模块可写入或粘贴任意内容，菜单支持删除和收起。</figcaption>
+  </figure>
+  <p>笔记适合承接攻略片段、交通提示、签证提醒、朋友建议等非结构化信息。机会点是：如果系统能从笔记中提取地点、待办或订单信息，会进一步加强结构化闭环。</p>
+
+  <h3>4.5 景点：候选地点、推荐地点与清单化管理</h3>
+  <figure class="figure">
+    <img src="wanderlog_places_section.png" alt="Wanderlog 景点模块截图">
+    <figcaption class="caption">图 8：景点模块支持添加地点、查看推荐地点、添加笔记和切换清单视图。</figcaption>
+  </figure>
+  <p>景点模块可以作为探索内容和每日行程之间的候选池，适合先收集、再筛选、再安排。</p>
+  <section class="note">
+    <p><strong>核心质疑与建议：</strong>从轻量用户视角看，概览里的景点模块存在明显重复感。既然下方按日期的行程节点已经可以直接添加景点和餐厅，用户完全可以在具体日期里添加地点、和同伴线下商量、再直接修改行程单。对于两三人出游或目的地已经明确的用户来说，这个候选池可能不是效率提升，而是额外的信息层级。建议弱化或折叠该模块，或明确命名为“待安排地点 / 想去的地方”。</p>
+  </section>
+
+  <h3>4.6 自定义模块</h3>
+  <figure class="figure">
+    <img src="wanderlog_custom_section_menu.png" alt="Wanderlog 自定义模块菜单截图">
+    <figcaption class="caption">图 9：自定义模块初始为“添加标题”，支持删除、排序、改颜色/图标、收起和添加笔记。</figcaption>
+  </figure>
+  <p>自定义模块适合重度规划用户按“餐厅、咖啡店、购物、雨天备选”等非日期维度组织内容。卡点是菜单中的“添加笔记”和模块快捷按钮重复，容易造成认知混淆。</p>
+
+  <h2>5. 定制行程流程：从空白日程到可执行路线</h2>
+  <p>定制行程是 Wanderlog 从“旅行资料整理”进入“真实执行”的核心流程。用户可以手动添加地点，也可以自动填充一日行程，再通过优化路线、拖拽排序、批量操作和地点详情来修正。</p>
+
+  <h3>5.1 住宿提醒与酒店搜索：从缺失信息到预订导流</h3>
+  <figure class="figure">
+    <img src="wanderlog_hotel_reminder.png" alt="Wanderlog 行程页住宿提醒截图">
+    <figcaption class="caption">图 10：当 trip 中缺少住宿信息时，每一天会出现“看起来您还没有住宿”的提醒，并提供“预订酒店”入口。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_hotel_search_modal.png" alt="Wanderlog 预订酒店弹窗截图">
+    <figcaption class="caption">图 11：点击“预订酒店”后出现酒店搜索弹窗，默认带入目的地、日期和旅行者人数。</figcaption>
+  </figure>
+  <p>这块功能既是完整性提醒，也是一条商业转化路径。根据 Wanderlog 官方酒店页，其酒店能力强调酒店与 Airbnb 一起搜索、比较多个预订网站价格、显示完整价格、价格下降提醒，并与 trip planner 集成。谨慎判断：这里主要是酒店搜索、比价、导流和预订管理入口；是否能在 Wanderlog 内直接完成闭环下单，需要以实际跳转和支付流程为准。来源：<a href="https://wanderlog.com/hotels" target="_blank" rel="noopener noreferrer">Wanderlog Hotels</a>。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>功能点</th><th>用户任务</th><th>价值</th><th>卡点/风险</th></tr></thead>
+      <tbody>
+        <tr><td>住宿缺失提醒</td><td>提醒用户当前日期范围内没有住宿安排。</td><td>补齐旅行执行中的关键缺口。</td><td>如果用户已在别处订房但未导入，提醒会显得打扰。</td></tr>
+        <tr><td>预订酒店入口</td><td>从日程直接进入酒店搜索。</td><td>把发现缺口连接到解决缺口。</td><td>需要明确是站内预订、比价跳转，还是管理已有预订。</td></tr>
+        <tr><td>地图右侧酒店图标</td><td>从地图层查看或搜索附近酒店。</td><td>适合边看路线边判断住哪里方便。</td><td>酒店图标需要和普通地点/地图筛选区分清楚。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>5.2 空白日程：手动添加、自动定制与 Chrome 扩展</h3>
+  <figure class="figure">
+    <img src="wanderlog_itinerary_empty_day.png" alt="Wanderlog 空白日程截图">
+    <figcaption class="caption">图 12：空白日程支持添加地点、自动填充日程、优化路线和从 Chrome 扩展添加地点。</figcaption>
+  </figure>
+  <p>手动添加地点是最短路径；自动填充日程可以为用户生成一日初稿，并附加推荐地点；Chrome 扩展则把外部网页中的任意地点带回 Wanderlog。卡点是扩展安装对轻量用户有门槛，自动填充的推荐逻辑也需要更透明。</p>
+
+  <h3>5.3 每日菜单：日程块级管理</h3>
+  <figure class="figure">
+    <img src="wanderlog_itinerary_day_menu.png" alt="Wanderlog 每日日程菜单截图">
+    <figcaption class="caption">图 13：每一天支持重新排序、更改颜色、展开所有天、插入一天、删除该天、添加笔记等操作。</figcaption>
+  </figure>
+  <p>每日菜单把一天作为可管理对象，适合长周期、多城市旅行。但对轻量用户来说，菜单项较多，会产生“只是排个行程，为什么这么重”的压力。</p>
+
+  <h3>5.4 自动定制结果：一日行程、推荐地点与地图路线</h3>
+  <figure class="figure">
+    <img src="wanderlog_itinerary_autofilled_route.png" alt="Wanderlog 自动填充日程和路线截图">
+    <figcaption class="caption">图 14：自动填充后，左侧生成一日地点列表，右侧同步展示地点信息、地图点位和推荐路线。</figcaption>
+  </figure>
+  <p>自动定制把用户从空白状态直接带到“可编辑的一日行程”。它会自动选定地点、生成路线，并附加推荐地点。但如果第二天选择同样地点无法再次生成一日日程，就需要明确解释原因，例如“这些地点已用于其他日期，可重新使用或换一批推荐地点”。</p>
+
+  <h3>5.5 路线优化与拖拽排序</h3>
+  <p>点击“优化路线”可以智能调整路线顺序，适合地点较多、用户不了解地理位置时。用户也可以在每日行程中拖动地点调整顺序，这保留了人工控制权。关键是拖动或优化后应实时反馈路线变化和总耗时变化。</p>
+
+  <h3>5.6 批量选择与地点微操作</h3>
+  <figure class="figure">
+    <img src="wanderlog_itinerary_bulk_actions.png" alt="Wanderlog 行程批量操作截图">
+    <figcaption class="caption">图 15：每个地点前有选中框，选中后顶部出现复制、移动、删除三个功能键。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_itinerary_place_inline_actions.png" alt="Wanderlog 行程地点内联操作截图">
+    <figcaption class="caption">图 16：行程地点内支持标记已访问、添加时间、添加附件和添加费用。</figcaption>
+  </figure>
+  <p>批量操作说明 Wanderlog 面向复杂行程编辑：用户可以复制、移动、删除地点。单个地点还可以标记已访问、添加时间、添加附件和添加费用，让行程从“地点列表”变成可执行、可记录、可结算的旅行单元。卡点是这些操作很多，建议把“标记已访问/添加时间”作为高频操作突出，把附件和费用放在更明确的二级入口里。</p>
+
+  <h3>5.7 地点信息卡片：关于、预订、评论、照片、提到与 AI 问答</h3>
+  <figure class="figure">
+    <img src="wanderlog_place_detail_card.png" alt="Wanderlog 地点信息卡片截图">
+    <figcaption class="caption">图 17：地点信息卡片包含关于、评论、照片、AI 问答、基础信息和外部网页跳转。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_place_booking_tab.png" alt="Wanderlog 地点预订 Tab 截图">
+    <figcaption class="caption">图 18：预订 Tab 提供预订选项，例如免费入场信息。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_place_mentions_tab.png" alt="Wanderlog 地点提到 Tab 截图">
+    <figcaption class="caption">图 19：提到 Tab 汇总网上相关文章和攻略引用，帮助用户理解这个地点在其他内容中的出现方式。</figcaption>
+  </figure>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>模块</th><th>价值</th><th>体验观察</th><th>建议</th></tr></thead>
+      <tbody>
+        <tr><td>关于</td><td>展示简介、评分、地址、营业时间、预计停留时长、电话、官网等基础信息。</td><td>能减少跳出查询，但信息密度高。</td><td>突出“今天是否营业”和“建议停留多久”。</td></tr>
+        <tr><td>询问 AI</td><td>用户可围绕地点提问，快捷问题降低提问门槛。</td><td>截图中出现请求超时，说明 AI 对响应速度敏感。</td><td>提供更友好的失败状态和基础兜底答案。</td></tr>
+        <tr><td>预订</td><td>把地点详情连接到门票/入场/预订选项。</td><td>对景点和餐厅决策很关键。</td><td>清楚区分“免费入场”“需要预约”“外部购票”。</td></tr>
+        <tr><td>提到</td><td>引用网上相关文章、攻略和游记，增加地点可信度。</td><td>它把地点从孤立 POI 变成有内容背书的目的地。</td><td>建议标注来源质量和发布时间，避免旧攻略误导。</td></tr>
+        <tr><td>外部跳转</td><td>Tripadvisor、Google、Google 地图等入口支持二次验证。</td><td>增强可信度，但也会把用户带出产品。</td><td>站内先给足关键信息，再提供外部验证入口。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <section class="note">
+    <p><strong>定制行程流程核心判断：</strong>Wanderlog 的强项是把“自动生成 + 手动编辑 + 地图路线 + 地点详情 + 预订/提到/费用记录”接成闭环。主要卡点在于自动生成限制不够透明、酒店预订是否闭环需要明确、AI 问答失败状态略生硬，以及功能层级较多时新用户可能不知道先相信系统还是先手动规划。</p>
+  </section>
+
+  <h2>6. 费用与预算管理：从行程费用到团体结算</h2>
+  <p>预算模块承接的是旅行执行后的财务管理：用户不仅可以设置总预算，还可以记录具体活动费用、查看每日/类别统计、邀请旅伴分摊，并把行程项目中的费用同步到预算清单。</p>
+
+  <h3>6.1 预算总览：总预算、费用清单与快捷入口</h3>
+  <figure class="figure">
+    <img src="wanderlog_budget_overview.png" alt="Wanderlog 预算总览截图">
+    <figcaption class="caption">图 20：预算模块展示总预算、费用列表，并提供设置预算、团体余额、查看明细、添加旅伴、设置和添加费用入口。</figcaption>
+  </figure>
+  <p>预算总览把旅行花费从散落的行程项目中集中呈现。图中已出现“东京迪士尼乐园 US$200.00”的费用条目，说明预算模块可以展示行程中记录的实际费用，并按日期排序。</p>
+
+  <h3>6.2 添加预算与币种切换</h3>
+  <figure class="figure">
+    <img src="wanderlog_budget_set_budget.png" alt="Wanderlog 设置预算截图">
+    <figcaption class="caption">图 21：设置预算弹窗支持输入金额，并可通过货币符号切换币种。</figcaption>
+  </figure>
+  <p>设置预算是旅行前的上限管理。它适合用户先设定一个总花费目标，再随着实际支出不断对比。币种切换对跨国旅行很重要，但建议在预算总览中同步显示默认币种和原始币种，避免用户混淆汇率换算。</p>
+
+  <h3>6.3 团体余额：结清状态、币种与结算</h3>
+  <figure class="figure">
+    <img src="wanderlog_budget_group_balance.png" alt="Wanderlog 团体余额截图">
+    <figcaption class="caption">图 22：团体余额支持查看个人摘要和团体概览，展示已结清/未结清状态，并支持更改货币和结算。</figcaption>
+  </figure>
+  <p>团体余额面向多人旅行的费用分摊。它把“谁付款、谁参与、谁还欠谁”集中处理。当前截图显示“您已全部结清”，说明状态反馈比较明确。卡点在于：如果旅伴没有加入 Wanderlog，线下结算和线上记录之间可能存在断层。</p>
+
+  <h3>6.4 添加旅伴：通过链接、邮箱或用户名邀请</h3>
+  <figure class="figure">
+    <img src="wanderlog_budget_invite_companion.png" alt="Wanderlog 邀请旅伴截图">
+    <figcaption class="caption">图 23：邀请旅伴支持复制链接，也支持通过电子邮件或用户名邀请。</figcaption>
+  </figure>
+  <p>费用分摊依赖旅伴身份，因此邀请入口放在预算模块里是合理的。它把协作从“共同编辑行程”延伸到“共同承担费用”。但如果用户只想自己记账，不想邀请别人，预算模块也应保留单人模式，不要强迫进入社交协作。</p>
+
+  <h3>6.5 费用设置：简化团体费用、默认币种与 CSV 导出</h3>
+  <figure class="figure">
+    <img src="wanderlog_budget_settings.png" alt="Wanderlog 费用设置截图">
+    <figcaption class="caption">图 24：费用设置包含简化团体费用、默认货币和 CSV 导出。</figcaption>
+  </figure>
+  <p>费用设置说明 Wanderlog 不只是简单记账，而是希望覆盖旅行结束后的清算和导出。CSV 导出适合重度用户或团体旅行后复盘。简化团体费用可以减少结算次数，但需要解释清楚算法逻辑，否则用户可能不理解为什么金额被合并。</p>
+
+  <h3>6.6 添加费用：绑定项目、类别、付款人、分摊、日期和币种</h3>
+  <figure class="figure">
+    <img src="wanderlog_budget_add_expense.png" alt="Wanderlog 添加费用截图">
+    <figcaption class="caption">图 25：添加费用弹窗支持金额、选择项目、付款人、分摊模式、日期和币种。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_budget_select_item.png" alt="Wanderlog 费用选择项目截图">
+    <figcaption class="caption">图 26：费用可以从行程项目中选择，也可以按航班、住宿、租车、公共交通、餐饮、观光、活动等类别选择。</figcaption>
+  </figure>
+  <p>添加费用是预算模块的核心输入动作。它支持两种组织方式：一种是绑定到具体行程项目，例如“东京迪士尼乐园”；另一种是按类别记录，例如餐饮、购物、公共交通等。分摊模式支持个人、每个人或不分摊，能覆盖单人记账和多人分账。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>字段</th><th>用户任务</th><th>价值</th><th>卡点</th></tr></thead>
+      <tbody>
+        <tr><td>金额/币种</td><td>输入费用并选择币种。</td><td>适合跨国旅行多币种消费。</td><td>汇率换算逻辑需要透明。</td></tr>
+        <tr><td>选择项目</td><td>把费用绑定到行程活动或类别。</td><td>让费用和实际行程建立关系。</td><td>项目和类别并存，用户可能不知道选哪个。</td></tr>
+        <tr><td>付款人</td><td>记录谁先付款。</td><td>支持后续团体结算。</td><td>需要旅伴加入后才更有价值。</td></tr>
+        <tr><td>分摊模式</td><td>选择个人、团队每个人或不分摊。</td><td>覆盖个人支出、共同支出和仅记录支出。</td><td>“不分摊”与“个人”边界需要说明。</td></tr>
+        <tr><td>日期</td><td>把费用落到具体日期。</td><td>支持逐日统计和旅行复盘。</td><td>日期可选，可能导致未归属费用。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.7 行程项目内添加费用：执行现场的记账入口</h3>
+  <figure class="figure">
+    <img src="wanderlog_budget_edit_expense.png" alt="Wanderlog 编辑费用截图">
+    <figcaption class="caption">图 27：从行程项目添加费用后，可编辑金额、类别、描述、付款人、分摊人和日期。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_budget_expense_list.png" alt="Wanderlog 费用列表截图">
+    <figcaption class="caption">图 28：预算模块中展示来自行程项目的费用条目，并支持点击进入编辑。</figcaption>
+  </figure>
+  <p>行程开展过程中，用户更自然的记账入口不是预算总览，而是具体行程项目。例如用户游玩东京迪士尼乐园后，可以直接在该地点里添加费用。记录后，这笔费用会进入预算模块的费用清单；在预算模块点击编辑并修改内容后，也会回传同步到行程项目。</p>
+
+  <section class="note">
+    <p><strong>预算模块核心判断：</strong>Wanderlog 的预算能力不是孤立记账，而是把“行程项目 -> 实际费用 -> 团体分摊 -> 预算总览”串成闭环。它的优势是费用可以绑定到具体行程，后续可按日期、类别、旅伴和币种管理；主要卡点是字段较多，轻量用户可能只想快速记录一笔支出，不一定想完整设置项目、类别、付款人、分摊和日期。</p>
+  </section>
+
+  <h2>7. AI 助手：实时讨论旅游方案</h2>
+  <p>AI 助手不是某一个日程节点里的局部功能，而是贯穿整个 trip 的横向能力。它负责在用户行前规划、路线调整、地点选择和旅途中变更时，提供实时问答和方案建议。</p>
+
+  <h3>7.1 对话入口与使用场景</h3>
+  <figure class="figure">
+    <img src="wanderlog_ai_assistant_full.png" alt="Wanderlog AI 助手窗口截图">
+    <figcaption class="caption">图 29：AI 助手支持用户实时提问，提供示例问题，并显示剩余免费消息。窗口可悬浮在页面右下角，也可展开为较大的对话窗口。</figcaption>
+  </figure>
+  <p>AI 助手承担的是“随时问、随时改”的旅行规划辅助角色。用户可以围绕目的地、美食、三天行程、本地景点等问题和 AI 讨论。它类似 GPT 的对话窗口，支持多次聊天和新聊天切换，适合作为横跨探索、行程编排、旅途中调整的智能入口。</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>能力</th><th>用户价值</th><th>体验观察</th><th>卡点/建议</th></tr></thead>
+      <tbody>
+        <tr><td>实时问答</td><td>用户不必离开当前 trip，就能询问目的地、餐厅、景点和路线建议。</td><td>适合在规划中遇到不确定问题时随手使用。</td><td>需要把 AI 回答和行程动作连接起来，例如一键加入地点或更新某天行程。</td></tr>
+        <tr><td>示例问题</td><td>降低不知道怎么问的门槛。</td><td>示例覆盖美食、三天行程、本地景点。</td><td>建议根据当前 trip 目的地和已添加地点动态生成问题。</td></tr>
+        <tr><td>悬浮/展开</td><td>既可作为右下角辅助，也可进入完整对话窗口。</td><td>适合边看地图边询问，也适合集中讨论方案。</td><td>悬浮状态不要遮挡关键地图和行程按钮。</td></tr>
+        <tr><td>多次聊天</td><td>不同主题可以分开保存，例如美食、住宿、路线。</td><td>更接近 GPT 对话模式。</td><td>如果聊天结果不能沉淀到 trip，容易变成孤立建议。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section class="note">
+    <p><strong>AI 助手核心判断：</strong>AI 助手的价值在于把“问问题”和“改行程”放在同一产品里。它适合解决用户在规划中产生的即时疑问，例如吃什么、去哪玩、某天怎么安排。但如果 AI 回答不能进一步沉淀为地点、日期、路线或笔记，就容易变成孤立聊天，无法真正提升行程执行效率。</p>
+  </section>
+
+  <h2>8. 旅行分享和导出：从协作规划到行程沉淀</h2>
+  <p>分享和导出能力负责把 trip 交给不同对象：同伴可以共同编辑，朋友或家人可以只读查看，用户自己可以打印离线备份，也可以在行后把行程整理成游记。</p>
+
+  <h3>8.1 分享邀请：可编辑与只读协作</h3>
+  <figure class="figure">
+    <img src="wanderlog_share_invite_modal.png" alt="Wanderlog 邀请旅伴分享弹窗截图">
+    <figcaption class="caption">图 30：分享弹窗支持可编辑/仅查看权限切换，并可通过链接、邮箱或用户名邀请同伴。</figcaption>
+  </figure>
+  <p>分享邀请是多人旅行协作的核心入口。可编辑适合共同规划，只有查看适合发给家人、朋友或同行者确认。它和预算模块里的旅伴邀请形成呼应：一个偏行程协作，一个偏费用分摊。</p>
+
+  <h3>8.2 更多菜单：设置、游记、提示、FAQ、只读和打印</h3>
+  <figure class="figure">
+    <img src="wanderlog_share_more_menu.png" alt="Wanderlog 更多菜单截图">
+    <figcaption class="caption">图 31：更多菜单包含行程设置、查看游记、专家提示、常见问题、只读模式、打印此旅行和收起所有部分。</figcaption>
+  </figure>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>功能</th><th>入口/链接</th><th>用户任务</th><th>体验价值</th></tr></thead>
+      <tbody>
+        <tr><td>行程设置</td><td>更多菜单</td><td>设置隐私、默认交通方式、转换为指南、离开行程。</td><td>管理 trip 的基础属性和访问边界。</td></tr>
+        <tr><td>查看游记</td><td><code>/editJournal/...</code></td><td>把行程转成行后记录，添加照片、笔记和回忆。</td><td>承接行程后整理与分享。</td></tr>
+        <tr><td>专家提示</td><td><code>/tips</code></td><td>查看航班、酒店、安全、打包、财务等旅行建议。</td><td>为行前确认提供知识清单。</td></tr>
+        <tr><td>常见问题</td><td>help.wanderlog.com</td><td>遇到使用问题时查看帮助中心。</td><td>降低复杂工具的学习成本。</td></tr>
+        <tr><td>只读模式</td><td><code>/view/...previewing=true</code></td><td>创建不可编辑的行程查看页。</td><td>适合分享给不参与编辑的人。</td></tr>
+        <tr><td>打印此旅行</td><td>浏览器打印页</td><td>把行程输出为纸质或 PDF。</td><td>适合离线备份、长辈查看或旅途中快速查阅。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>8.3 行程设置、游记、专家提示、只读和打印的具体体验</h3>
+  <figure class="figure">
+    <img src="wanderlog_trip_settings_modal.png" alt="Wanderlog 行程设置截图">
+    <figcaption class="caption">图 32：行程设置支持公开、朋友、私人三种隐私级别，默认交通方式，以及转换为指南和离开行程。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_journal_onboarding.png" alt="Wanderlog 游记引导截图">
+    <figcaption class="caption">图 33：查看游记会引导用户保存访问过的地点、添加照片和笔记，把行程转成旅行回忆。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_expert_tips.png" alt="Wanderlog 专家提示截图">
+    <figcaption class="caption">图 34：专家提示覆盖重要提醒、航班、酒店住宿、租车、安全、打包、财务和应用工具等主题。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_readonly_mode.png" alt="Wanderlog 只读模式截图">
+    <figcaption class="caption">图 35：只读模式把行程变成可浏览页面，左侧展示行程内容，右侧保留地图和地点详情。</figcaption>
+  </figure>
+  <figure class="figure">
+    <img src="wanderlog_print_trip.png" alt="Wanderlog 打印旅行截图">
+    <figcaption class="caption">图 36：打印此旅行进入浏览器打印界面，将景点、行程和地点说明整理成纸质/PDF 版。</figcaption>
+  </figure>
+
+  <section class="note">
+    <p><strong>分享导出的核心判断：</strong>Wanderlog 的分享体系覆盖三类场景：协作规划、只读查看和行后沉淀。可编辑分享适合共同规划，只读模式适合给非编辑者查看，游记和打印适合行后整理或离线备份。主要卡点是这些入口分布在“分享”和“更多”之间，用户需要理解每个入口的对象不同：同伴、读者、自己、纸质备份或帮助中心。</p>
+  </section>
+
+  <h2>9. Wanderlog 的核心执行模型</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>层级</th><th>对应模块</th><th>用户任务</th></tr></thead>
+      <tbody>
+        <tr><td>基础层</td><td>目的地、日期、标题</td><td>定义这次旅行是什么。</td></tr>
+        <tr><td>空间层</td><td>地图、地点、景点、酒店</td><td>判断去哪、住哪里、路线是否合理。</td></tr>
+        <tr><td>时间层</td><td>每日行程、添加时间、拖拽排序</td><td>把地点放进具体日期和顺序里。</td></tr>
+        <tr><td>执行层</td><td>预订、附件、费用、已访问标记</td><td>把计划变成可执行和可记录的资料包。</td></tr>
+        <tr><td>决策层</td><td>地点详情、AI 问答、提到、评论、照片</td><td>帮助用户判断地点是否值得保留。</td></tr>
+        <tr><td>协作/转化层</td><td>分享、注册保存、下载 app、酒店导流</td><td>推动多人协作、账号转化和商业转化。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>10. 当前体验结论与改进建议</h2>
+  <h3>10.1 关键卡点总结</h3>
+  <ol>
+    <li><strong>创建阶段没有承接用户偏好。</strong> 当前只采集目的地和日期，缺少兴趣、节奏、预算、同行人、熟悉程度等信号，导致用户进入工作台后仍然面对空白行程。</li>
+    <li><strong>概览景点、自定义模块和正式日程存在重复感。</strong> 对重度用户来说它们是候选池和分类工具；对轻量用户来说，直接在每日行程节点添加地点更自然。</li>
+    <li><strong>自动定制能力有价值，但限制需要解释。</strong> 例如第二日选择同样地点无法再次生成一日日程，如果没有解释，会让用户觉得系统不可控。</li>
+    <li><strong>酒店入口混合了提醒、搜索、比价、导流和预订管理。</strong> 用户需要明确知道自己是在站内预订、跳转比价，还是管理已有订单。</li>
+    <li><strong>预算模块字段完整，但轻量记账路径偏重。</strong> 项目、类别、付款人、分摊、日期、币种都很有用，但用户在旅途中可能只想快速记录一笔费用。</li>
+    <li><strong>AI 助手如果不能写回行程，就容易变成孤立聊天。</strong> 用户真正需要的是“问完之后能直接变成地点、路线、日期、笔记或预算动作”。</li>
+  </ol>
+
+  <h3>10.2 结合 agent 能力的落地改进建议</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>改进方向</th><th>可落地方案</th><th>涉及功能</th><th>优先级</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>创建页增加偏好采集</td>
+          <td>在目的地和日期后增加 3 步轻量问答：旅行兴趣、节奏、同行人/预算。用户也可以跳过。Agent 根据回答生成第一版候选行程。</td>
+          <td>创建新行程、AI 助手、自动填充日程</td>
+          <td>高</td>
+        </tr>
+        <tr>
+          <td>生成“可编辑初稿”而不是空 trip</td>
+          <td>创建完成后，Agent 自动生成 1 个粗行程：每日 2-4 个地点、推荐理由、预计停留时长、路线顺序。用户可以一键接受、替换或删除。</td>
+          <td>自动定制、地图路线、地点详情</td>
+          <td>高</td>
+        </tr>
+        <tr>
+          <td>把 AI 回答转成行程动作</td>
+          <td>AI 回答旁提供操作按钮：加入某天、加入待安排、替换当天方案、生成备选路线、添加到笔记。这样 AI 不只是聊天，而是行程编辑 agent。</td>
+          <td>AI 助手、行程页、景点候选池、笔记</td>
+          <td>高</td>
+        </tr>
+        <tr>
+          <td>解释自动生成失败或限制</td>
+          <td>当第二天无法使用同样地点生成行程时，给出明确原因和选项：重新使用这些地点、换一批推荐、围绕同一区域生成不同玩法。</td>
+          <td>自动填充日程、推荐地点</td>
+          <td>中高</td>
+        </tr>
+        <tr>
+          <td>轻量用户默认走短路径</td>
+          <td>默认路径改成：生成初稿 -> 编辑每日行程 -> 优化路线 -> 确认住宿 -> 保存/分享。概览候选池、自定义模块、复杂批量操作默认弱化或折叠。</td>
+          <td>概览、行程页、自定义模块</td>
+          <td>中高</td>
+        </tr>
+        <tr>
+          <td>酒店入口明确商业动作</td>
+          <td>在酒店搜索结果前明确标注：比价搜索、外部预订、导入已有预订、管理酒店订单。减少用户对“能否直接订”的不确定。</td>
+          <td>住宿提醒、酒店搜索、预订和附件</td>
+          <td>中</td>
+        </tr>
+        <tr>
+          <td>旅途中快速记账</td>
+          <td>在地点卡片上提供“快速记一笔”：金额 + 类别即可保存，其他字段之后补。Agent 可根据地点类型自动猜测类别。</td>
+          <td>费用、预算、地点内联操作</td>
+          <td>中</td>
+        </tr>
+        <tr>
+          <td>行前检查 agent</td>
+          <td>出发前自动扫描 trip，提示缺失项：没有住宿、某天过满、地点距离太远、预算未设置、预订未导入、营业时间冲突。</td>
+          <td>专家提示、酒店提醒、行程页、预算</td>
+          <td>中</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section class="note">
+    <p><strong>最终建议：</strong>Wanderlog 已经有很强的旅行规划基础设施，真正的下一步不是继续堆功能，而是让 AI agent 成为“规划执行器”。它应当在创建阶段理解用户偏好，在行程阶段生成和修改可执行路线，在预订阶段检查缺口，在旅途中帮助快速记录和调整。这样才能把 Wanderlog 从重度旅行规划工作台，推进为更主动、更贴合个人偏好的旅行规划 agent。</p>
+  </section>
+</main>
+</body>
+</html>

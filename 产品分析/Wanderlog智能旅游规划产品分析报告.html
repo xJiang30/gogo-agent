@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wanderlog 智能旅游规划产品分析报告</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --text: #17212b;
+      --muted: #5d6975;
+      --line: #d9e1e8;
+      --soft: #f5f8fa;
+      --accent: #0b6bcb;
+      --accent-soft: #eaf4ff;
+      --paper: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--text);
+      background: #eef3f7;
+      line-height: 1.68;
+    }
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto;
+      padding: 48px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 50px rgba(20, 36, 52, 0.08);
+    }
+    h1, h2, h3 { line-height: 1.28; margin: 0 0 16px; color: #102033; }
+    h1 { font-size: 34px; letter-spacing: 0; padding-bottom: 20px; border-bottom: 3px solid var(--accent); }
+    h2 { font-size: 25px; margin-top: 42px; padding-top: 8px; }
+    h3 { font-size: 18px; margin-top: 28px; color: #173b5f; }
+    p { margin: 0 0 16px; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(11, 107, 203, .28); }
+    a:hover { border-bottom-color: currentColor; }
+    code { padding: 2px 6px; background: var(--accent-soft); border-radius: 4px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.92em; }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 34px 0; }
+    ul, ol { margin: 0 0 18px 24px; padding: 0; }
+    li { margin: 5px 0; }
+    .table-wrap { overflow-x: auto; margin: 18px 0 26px; border: 1px solid var(--line); border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; font-size: 14px; }
+    th, td { padding: 11px 13px; vertical-align: top; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th { background: var(--soft); font-weight: 700; text-align: left; color: #173b5f; }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    strong { color: #0e2a44; }
+    @media print {
+      body { background: white; }
+      .page { width: 100%; margin: 0; padding: 24px; border: 0; box-shadow: none; }
+      a { color: inherit; border-bottom: 0; }
+      h2 { break-after: avoid; }
+      .table-wrap { break-inside: avoid; }
+    }
+    @media (max-width: 720px) {
+      .page { width: 100%; margin: 0; padding: 24px 18px; border-radius: 0; border-left: 0; border-right: 0; }
+      h1 { font-size: 26px; }
+      h2 { font-size: 21px; }
+      table { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+<h1>Wanderlog 智能旅游规划产品分析报告</h1>
+<p>研究日期：2026-06-18 产品名称：Wanderlog 公司主体：公开页面中可见 <code>Travelchime Inc.</code>、<code>Vacation and Travel Planner App LLC</code> 等主体信息 所属领域：旅行规划、AI Travel Planner、地图行程工具、多人协作工具 产品官网：https://wanderlog.com/ 应用渠道：App Store、Google Play</p>
+<hr>
+<h2>1. Executive Summary</h2>
+<p>Wanderlog 是一款面向自由行、多城市旅行、自驾游和多人旅行场景的智能旅行规划产品。它不是单纯的 AI itinerary generator，而是一个围绕旅行计划 <code>Trip</code> 展开的协作型工作台：用户可以在同一产品中完成行程安排、地图查看、路线优化、预订导入、预算管理、清单管理、多人协作和 AI 推荐。</p>
+<p>Wanderlog 的核心优势在于把旅行规划中最分散的几类信息，统一整理到一个结构化旅行容器里。相较于只生成文本行程的 AI 旅行助手，Wanderlog 更强调计划的可执行性：地点能落在地图上，路线能被优化，预订能被导入，预算能被记录，多人能共同编辑。</p>
+<p>总体判断：Wanderlog 是消费级旅行规划产品中完成度较高的代表。它的长期机会不在于“生成一份漂亮行程”，而在于成为旅行前、中、后的个人/多人旅行操作系统。</p>
+<hr>
+<h2>2. Business Overview</h2>
+<h3>2.1 Company Description</h3>
+<p>Wanderlog 是一款旅行计划和路线规划应用，覆盖网页端、iOS 和 Android。产品面向旅行者提供从灵感发现、行程安排、地图路线、多人协作到旅行中执行的全流程工具。</p>
+<p>公开资料中，Wanderlog 官网强调其是一款覆盖旅行规划需求的一体化应用；App Store 和 Google Play 显示其拥有较高用户评分，并获得编辑推荐。由于公司不是上市公司，公开披露的收入、利润、融资和组织规模信息有限，因此本报告更偏产品、商业模式和竞争战略分析。</p>
+<h3>2.2 Business Model</h3>
+<p>Wanderlog 当前主要采用 freemium + subscription 模式。</p>
+<div class="table-wrap"><table><thead><tr>
+<th>收入来源</th>
+<th>说明</th>
+</tr></thead><tbody>
+<tr>
+<td>Pro 订阅</td>
+<td>通过离线访问、Gmail 自动导入、Google Maps 导出、AI/自动化能力等高级功能收费</td>
+</tr>
+<tr>
+<td>潜在导流佣金</td>
+<td>酒店、活动、交通、旅游服务等预订导流可能带来佣金，但公开资料无法确认占比</td>
+</tr>
+<tr>
+<td>内容流量转化</td>
+<td>城市 guide、用户攻略和公开 itinerary 可通过 SEO 带来流量，并转化为注册、订阅或交易</td>
+</tr>
+<tr>
+<td>未来潜在 B2B</td>
+<td>旅行社、学校、公司团建、活动组织者等多人行程场景存在扩展空间</td>
+</tr>
+</tbody></table></div>
+<p>商业模式的核心挑战是：旅行规划属于低频但高复杂度场景。用户在旅行前和旅行中需求强烈，但全年使用频次有限。因此，Wanderlog 的 Pro 版必须持续证明其在“旅行中执行”和“复杂旅行管理”上的价值，而不能只依赖旅行前的规划效率。</p>
+<hr>
+<h2>3. Key Products and Services</h2>
+<h3>3.1 Core Product</h3>
+<p>Wanderlog 的核心产品是一套旅行规划工作台，主要包括：</p>
+<ol>
+<li>行程规划：按天创建 itinerary，安排景点、餐厅、酒店、航班和交通。</li>
+<li>地图与路线：在地图上查看地点分布、路线顺序和旅行距离。</li>
+<li>多人协作：邀请旅伴共同编辑同一份旅行计划。</li>
+<li>预订导入：通过邮件转发或 Gmail 连接导入航班、酒店、租车等预订信息。</li>
+<li>预算和费用：记录旅行预算、支出和多人分账。</li>
+<li>清单管理：创建打包清单、待办事项和旅行准备事项。</li>
+<li>AI 生成和推荐：根据目的地、天数和偏好生成建议行程或推荐地点。</li>
+<li>Guide 内容：浏览其他用户或平台提供的旅行攻略，并把地点加入自己的计划。</li>
+</ol>
+<h3>3.2 产品功能架构：从 AI 生成到旅行执行的闭环</h3>
+<p>Wanderlog 的功能不是简单堆叠，而是围绕一个核心对象 <code>Trip</code> 展开。Trip 既是一次旅行计划，也是所有地点、日期、预订、预算、清单、协作和 AI 推荐的统一容器。</p>
+<div class="table-wrap"><table><thead><tr>
+<th>功能模块</th>
+<th>用户看到的功能</th>
+<th>实现方式/产品机制</th>
+<th>价值</th>
+</tr></thead><tbody>
+<tr>
+<td>行程规划 Itinerary</td>
+<td>按天创建行程，把景点、餐厅、酒店、航班、租车等加入每天计划</td>
+<td>以“Trip -&gt; Day -&gt; Stop/Booking/Note”的结构组织数据；每个地点绑定时间、位置、备注、预订信息、费用等字段</td>
+<td>把散落在 Google Maps、Excel、邮件、聊天记录里的信息集中起来</td>
+</tr>
+<tr>
+<td>地图与行程联动</td>
+<td>列表看行程，地图上同步显示所有地点</td>
+<td>每个地点通过地理编码匹配坐标；行程顺序变化后，地图路线和距离随之更新</td>
+<td>让用户从“文字计划”变成“空间计划”，判断路线是否合理</td>
+</tr>
+<tr>
+<td>地点搜索与收藏</td>
+<td>搜索景点、餐厅、酒店，加入 trip 或 wishlist</td>
+<td>接入地点数据库，并补充评分、图片、营业时间、官网、评论等信息；用户也可手动添加地点</td>
+<td>降低找地点和保存地点的成本</td>
+</tr>
+<tr>
+<td>路线优化</td>
+<td>自动调整一天内多个地点的访问顺序</td>
+<td>基于地点坐标、起终点、交通方式、距离/时间估算做路径排序；本质接近多点路线优化问题</td>
+<td>适合自驾游、城市暴走、多景点密集旅行</td>
+</tr>
+<tr>
+<td>预订导入</td>
+<td>转发邮件或连接 Gmail 后，自动把航班、酒店、租车等加入行程</td>
+<td>对邮件内容做结构化解析，识别日期、地点、订单号、航班号、酒店名、入住时间等字段，再映射到 itinerary</td>
+<td>解决旅行信息最分散、最难找的问题</td>
+</tr>
+<tr>
+<td>多人协作</td>
+<td>多个用户一起编辑同一份旅行计划</td>
+<td>类似协作文档机制：共享 trip 权限、多人编辑、变更同步、编辑记录/活动日志</td>
+<td>适合家庭、情侣、朋友团体旅行，减少群聊反复确认</td>
+</tr>
+<tr>
+<td>费用与预算</td>
+<td>记录预算、花费、多人分账</td>
+<td>将费用绑定到 trip 或具体项目；记录付款人、参与人、币种、分类，并计算每个人应付/应收</td>
+<td>从“规划工具”延伸到“旅行执行工具”</td>
+</tr>
+<tr>
+<td>清单 Checklist</td>
+<td>创建打包清单、待办事项、旅行前准备事项</td>
+<td>checklist 作为 trip 内的轻量任务模块，可勾选、分组、分配给成员</td>
+<td>覆盖旅行前准备，不只是景点安排</td>
+</tr>
+<tr>
+<td>AI 行程生成/探索</td>
+<td>输入目的地、天数、偏好后生成建议行程或推荐地点</td>
+<td>AI 根据目的地、时间、兴趣标签生成初稿，再把结果结构化写入行程和地图；用户继续拖拽调整</td>
+<td>用 AI 降低从 0 到 1 的规划门槛</td>
+</tr>
+<tr>
+<td>用户攻略 Guide</td>
+<td>浏览别人分享的城市攻略或 itinerary，并把地点加入自己的计划</td>
+<td>内容库 + 地点实体化；攻略中的地点不是纯文本，而是可加入行程的地点对象</td>
+<td>把内容消费转化为规划动作</td>
+</tr>
+<tr>
+<td>离线访问 Pro</td>
+<td>没网时也能查看旅行计划</td>
+<td>本地缓存 trip 数据、地图/地点关键信息、预订详情；同步恢复后再上传改动</td>
+<td>对出境游、山区、自驾游很有价值</td>
+</tr>
+<tr>
+<td>Google Maps 导出 Pro</td>
+<td>把 Wanderlog 路线导出到 Google Maps 导航</td>
+<td>将一天内地点序列转成 Google Maps 可识别的路线/地点列表</td>
+<td>解决“规划在 Wanderlog，导航在 Google Maps”的衔接问题</td>
+</tr>
+<tr>
+<td>多端同步</td>
+<td>手机、平板、网页都能继续编辑</td>
+<td>账号体系 + 云端 trip 数据；移动端与网页端共享同一套行程数据</td>
+<td>覆盖旅行前的桌面规划场景和旅行中的移动场景</td>
+</tr>
+</tbody></table></div>
+<h3>3.3 产品机制理解</h3>
+<p>Wanderlog 的产品本质不是“AI 旅行助手”，而是一个旅行计划操作系统。所有功能最终都回到 <code>Trip</code> 这个数据容器里：</p>
+<ul>
+<li>地点是 trip 的空间层</li>
+<li>每日行程是 trip 的时间层</li>
+<li>预订信息是 trip 的确定性安排</li>
+<li>预算和费用是 trip 的财务层</li>
+<li>checklist 是 trip 的任务层</li>
+<li>协作是 trip 的多人权限层</li>
+<li>AI 是 trip 的生成与推荐层</li>
+<li>guide 是 trip 的内容来源层</li>
+</ul>
+<p>因此，Wanderlog 的真正壁垒不只是 AI 生成能力，而是它能把 AI、地图、预订、协作、预算和旅行执行流程连接起来。</p>
+<h3>3.4 关键产品亮点</h3>
+<p><strong>地图化行程是核心差异。</strong> 很多 AI 旅行产品只能生成一段文字，但 Wanderlog 把景点放到地图上，并显示路线、距离和顺序。这让用户能判断计划是否真的可执行。</p>
+<p><strong>协作场景强于传统旅行 app。</strong> 多人编辑、任务分配、费用分摊、活动记录，让它不只是个人笔记，而是团体旅行的共同工作区。</p>
+<p><strong>Pro 版更偏“自动化和旅行中可用性”。</strong> 离线访问、Gmail 自动扫描、Google Maps 导出，本质上都在解决旅行中最实际的问题：没网、找不到订单、导航不顺手。</p>
+<p><strong>免费功能足够强，形成获客漏斗。</strong> 免费版已经能完成大部分基础规划；Pro 主要售卖效率、自动化和旅途中安心感。</p>
+<hr>
+<h2>4. Market Analysis</h2>
+<h3>4.1 Industry Overview</h3>
+<p>旅行规划是一个低频但高复杂度的消费场景。用户一年旅行次数有限，但每次旅行都会涉及大量决策：目的地、预算、酒店、航班、路线、景点、餐厅、同伴意见和临时变化。</p>
+<p>AI 的出现降低了旅行规划的起点，但也暴露了一个关键问题：AI 可以快速生成建议，却未必保证路线合理、营业时间准确、交通可行或预算匹配。Wanderlog 的机会正在于此：用 AI 降低从 0 到 1 的规划成本，用地图、结构化行程和协作机制保证计划可执行。</p>
+<h3>4.2 Key Industry Trends</h3>
+<ol>
+<li>AI 正在成为旅行规划的新入口。用户越来越习惯先让 AI 生成初步行程，再进行人工筛选和调整。</li>
+<li>旅行规划从内容消费走向结构化执行。攻略、短视频和榜单只是灵感来源，用户最终仍需要行程、地图、预订和预算工具。</li>
+<li>多人旅行协作需求上升。家庭游、朋友游、情侣游都需要共同决策，而传统旅行产品通常更偏个人使用。</li>
+<li>地图、预订和 AI 正在融合。OTA、地图平台和 AI 助手都在试图占据旅行规划入口。</li>
+</ol>
+<hr>
+<h2>5. Competitive Landscape</h2>
+<h3>5.1 Market Position</h3>
+<p>Wanderlog 位于“旅行规划工具”和“AI 旅行助手”之间。它不像 TripIt 那样主要管理预订，也不像 ChatGPT 那样主要生成文本建议，而是把旅行计划变成一个可以编辑、协作、导航和执行的结构化系统。</p>
+<h3>5.2 Key Competitors</h3>
+<div class="table-wrap"><table><thead><tr>
+<th>类型</th>
+<th>代表产品</th>
+<th>优势</th>
+<th>Wanderlog 的差异</th>
+</tr></thead><tbody>
+<tr>
+<td>行程管理</td>
+<td>TripIt</td>
+<td>邮件导入、航班提醒、商务旅行成熟</td>
+<td>Wanderlog 更偏可视化规划、多人协作、地图和景点组织</td>
+</tr>
+<tr>
+<td>自驾规划</td>
+<td>Roadtrippers</td>
+<td>路线、POI、自驾内容强</td>
+<td>Wanderlog 更通用，覆盖城市游、国际游、家庭游</td>
+</tr>
+<tr>
+<td>旅行顾问 SaaS</td>
+<td>Travefy</td>
+<td>面向旅行社，支持提案、客户管理、品牌化行程</td>
+<td>Wanderlog 是 C 端工具，更轻、更自助</td>
+</tr>
+<tr>
+<td>通用工具</td>
+<td>Google Maps、Docs、Sheets、Notion</td>
+<td>免费、熟悉、灵活</td>
+<td>Wanderlog 把地图、行程、协作、费用、预订导入做成旅行专用流程</td>
+</tr>
+<tr>
+<td>AI 旅行助手</td>
+<td>ChatGPT、GuideGeek、Expedia AI 等</td>
+<td>生成快、对话自然</td>
+<td>Wanderlog 的优势是结构化执行层，而不只是生成建议</td>
+</tr>
+</tbody></table></div>
+<h3>5.3 Competitive Advantages</h3>
+<p>Wanderlog 的护城河来自结构化旅行数据、地图化行程、多端协作和旅行执行场景的组合，而不是单一的 AI 生成能力。</p>
+<p>较强的优势包括：</p>
+<ul>
+<li>用户一旦把一次复杂旅行完整放进去，迁移成本较高。</li>
+<li>多人协作会形成小范围网络效应。</li>
+<li>用户 guide 和公开 itinerary 可能积累 SEO 与内容资产。</li>
+<li>地图化 itinerary 比纯文本 AI 更可执行。</li>
+<li>免费功能完整，有利于低成本获客。</li>
+</ul>
+<p>相对薄弱的地方包括：</p>
+<ul>
+<li>旅行频次低，订阅续费压力大。</li>
+<li>Google、Apple、Expedia、Booking、Tripadvisor 等平台都有能力进入 AI 旅行规划。</li>
+<li>Gmail、Google Maps、地点数据等能力依赖外部平台政策。</li>
+<li>功能较多可能增加新用户上手负担。</li>
+</ul>
+<hr>
+<h2>6. Porter's Five Forces</h2>
+<div class="table-wrap"><table><thead><tr>
+<th>维度</th>
+<th>强度</th>
+<th>判断</th>
+</tr></thead><tbody>
+<tr>
+<td>新进入者威胁</td>
+<td>高</td>
+<td>AI itinerary 产品门槛降低，创业团队和大厂都能进入</td>
+</tr>
+<tr>
+<td>供应商议价力</td>
+<td>中高</td>
+<td>地图、邮箱、酒店/活动库存、AI 模型都可能成为成本或政策约束</td>
+</tr>
+<tr>
+<td>用户议价力</td>
+<td>高</td>
+<td>用户可退回 Google Maps、Sheets、Notion、ChatGPT 等免费替代品</td>
+</tr>
+<tr>
+<td>替代品威胁</td>
+<td>高</td>
+<td>通用 AI、OTA app、地图 app、旅行社服务都能部分替代</td>
+</tr>
+<tr>
+<td>行业内竞争</td>
+<td>高</td>
+<td>旅行规划、预订、内容、地图、AI 助手正在融合</td>
+</tr>
+</tbody></table></div>
+<hr>
+<h2>7. SWOT Analysis</h2>
+<div class="table-wrap"><table><thead><tr>
+<th>Strengths 优势</th>
+<th>Weaknesses 劣势</th>
+</tr></thead><tbody>
+<tr>
+<td>功能完整，覆盖旅行规划全流程</td>
+<td>功能密度高，新用户可能觉得复杂</td>
+</tr>
+<tr>
+<td>高评分、高口碑、双平台分发成熟</td>
+<td>公开公司/财务信息较少，外部判断有限</td>
+</tr>
+<tr>
+<td>多人协作、地图、预算、预订导入组合强</td>
+<td>旅行低频，订阅续费存在天然压力</td>
+</tr>
+<tr>
+<td>免费版足够强，有利于获客</td>
+<td>Gmail、Google Maps 等能力依赖外部平台</td>
+</tr>
+</tbody></table></div>
+<div class="table-wrap"><table><thead><tr>
+<th>Opportunities 机会</th>
+<th>Threats 威胁</th>
+</tr></thead><tbody>
+<tr>
+<td>AI 旅行规划需求上升</td>
+<td>OTA、地图、搜索和 AI 巨头都可能整合类似能力</td>
+</tr>
+<tr>
+<td>可从规划延伸到预订和佣金</td>
+<td>通用 AI 助手降低用户搜索和初步规划成本</td>
+</tr>
+<tr>
+<td>可建立用户 guide 内容生态</td>
+<td>数据隐私、邮件授权、位置数据带来合规压力</td>
+</tr>
+<tr>
+<td>可拓展家庭、团体、旅行社等多人场景</td>
+<td>功能过多可能削弱轻用户体验</td>
+</tr>
+</tbody></table></div>
+<hr>
+<h2>8. Risk Assessment</h2>
+<div class="table-wrap"><table><thead><tr>
+<th>风险</th>
+<th>可能性</th>
+<th>影响</th>
+<th>说明</th>
+</tr></thead><tbody>
+<tr>
+<td>大平台竞争</td>
+<td>高</td>
+<td>高</td>
+<td>Google、Apple、Expedia、Booking 等平台可将 AI 旅行规划集成到已有入口</td>
+</tr>
+<tr>
+<td>订阅续费压力</td>
+<td>高</td>
+<td>中高</td>
+<td>旅行是低频场景，用户可能只在出行前短期订阅</td>
+</tr>
+<tr>
+<td>数据依赖风险</td>
+<td>中高</td>
+<td>高</td>
+<td>Gmail、Google Maps、地点数据和地图服务政策变化可能影响核心功能</td>
+</tr>
+<tr>
+<td>AI 准确性风险</td>
+<td>中</td>
+<td>高</td>
+<td>错误营业时间、路线不可行、推荐不匹配会直接影响旅行体验</td>
+</tr>
+<tr>
+<td>产品复杂度风险</td>
+<td>中</td>
+<td>中</td>
+<td>功能越全，新用户越可能感到学习成本高</td>
+</tr>
+</tbody></table></div>
+<hr>
+<h2>9. Strategic Recommendations</h2>
+<h3>9.1 把 AI 定位为入口，而不是全部产品价值</h3>
+<p>Wanderlog 不应该只和 ChatGPT 比谁更会写行程，而应该强调“生成后能落到地图、时间、预算、交通、协作和预订”。AI 是降低规划起点的入口，结构化执行才是核心壁垒。</p>
+<h3>9.2 强化旅行中场景，提高 Pro 订阅合理性</h3>
+<p>离线访问、当天路线重排、票券/预订卡片、预算提醒、地图导航衔接，都是用户更愿意付费的高价值场景。Pro 的价值应尽量从“规划更方便”升级为“旅行中更安心”。</p>
+<h3>9.3 降低新用户复杂度</h3>
+<p>可以用场景模板降低上手成本，例如城市游、自驾游、家庭游、情侣游、多人游、商务+休闲。不同场景默认展示不同功能，避免一开始把所有模块同时暴露给用户。</p>
+<h3>9.4 建立内容到计划的闭环</h3>
+<p>Wanderlog 的 guide 不应只是攻略内容，而应成为可复制、可编辑、可加入自己 trip 的结构化旅行资产。内容越多，地点实体和 trip 模板越多，越能形成复利。</p>
+<h3>9.5 提高 AI 可信度和可解释性</h3>
+<p>旅行规划最怕“看起来合理但实际不可行”。AI 推荐应尽量给出依据，例如距离、营业时间、交通时间、适合人群、预算区间，并允许用户一键检查路线可行性。</p>
+<hr>
+<h2>10. Conclusion</h2>
+<p>Wanderlog 的核心价值是把旅行规划从碎片化工具变成一个统一的旅行工作台。它不是一个简单的 AI itinerary generator，而是围绕 <code>Trip</code> 构建的多层系统：空间层、时间层、协作层、预算层、预订层、内容层和 AI 生成层。</p>
+<p>它的长期增长关键在于两点：</p>
+<ol>
+<li>能否把 AI 生成的灵感变成真实可执行的旅行计划。</li>
+<li>能否把旅行前的规划工具，延伸成旅行中的执行工具和旅行后的内容资产。</li>
+</ol>
+<p>如果只做“生成行程”，Wanderlog 很容易被通用 AI 替代；但如果继续强化地图、协作、预订、预算、离线和 guide 生态，它有机会成为自由行用户和多人旅行用户的核心规划入口。</p>
+<hr>
+<h2>Appendix: Sources</h2>
+<ul>
+<li>Wanderlog 官网：https://wanderlog.com/</li>
+<li>App Store: Wanderlog Travel Planner：https://apps.apple.com/us/app/wanderlog-travel-planner/id1476732439</li>
+<li>Google Play: Wanderlog Travel Planner：https://play.google.com/store/apps/details?hl=en_US&amp;id=com.wanderlog.android</li>
+<li>TripIt 官网：https://www.tripit.com/web</li>
+<li>Roadtrippers 官网：https://roadtrippers.com/</li>
+<li>Travefy 官网：https://www.travefy.com/</li>
+<li>Washington Post group trip app 相关报道：https://www.washingtonpost.com/travel/tips/best-travel-planning-apps/</li>
+</ul>
+<hr>
+<h2>Disclaimer</h2>
+<p>本报告基于公开信息和产品分析整理，不构成投资建议、收购建议或法律/财务尽调意见。由于 Wanderlog 为非上市公司，收入、利润、融资、员工人数等信息公开披露有限，相关判断应结合后续一手访谈、用户调研和数据验证进一步确认。</p>
+  </main>
+</body>
+</html>
