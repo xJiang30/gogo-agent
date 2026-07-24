@@ -1,0 +1,298 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gogo Agent Architecture and Graph Spec</title>
+    <style>
+      :root { --bg:#f6f2eb; --paper:#fffdfa; --ink:#1f2937; --muted:#5f6b7a; --line:#ddd4c7; --brand:#215732; --brand-soft:#e7f2ea; --accent-soft:#edf4f8; --warn-soft:#fff4db; --shadow:0 18px 48px rgba(28,30,33,.08); }
+      * { box-sizing: border-box; }
+      body { margin:0; background:radial-gradient(circle at top left, rgba(33,87,50,.08), transparent 28rem), linear-gradient(180deg,#faf7f2 0%,var(--bg) 100%); color:var(--ink); font:16px/1.75 "Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+      .page { max-width:1080px; margin:0 auto; padding:40px 20px 72px; }
+      .hero,.section,.toc { background:var(--paper); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); padding:28px; margin-bottom:18px; }
+      h1 { margin:0 0 10px; font-size:34px; line-height:1.15; } h2 { margin:0 0 14px; font-size:26px; } h3 { margin:24px 0 10px; font-size:20px; } h4 { margin:0 0 8px; font-size:16px; }
+      .muted { color:var(--muted); } .badge-row { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+      .badge { display:inline-flex; align-items:center; min-height:30px; padding:0 12px; border-radius:999px; background:var(--brand-soft); color:var(--brand); border:1px solid var(--line); font-size:13px; font-weight:700; }
+      .toc ul { margin:0; padding-left:20px; columns:2; } .toc a { color:#1f5d7a; text-decoration:none; }
+      .callout { border:1px solid var(--line); border-radius:12px; background:var(--accent-soft); padding:14px 16px; margin:14px 0; } .warning { background:var(--warn-soft); }
+      .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; } .card { border:1px solid var(--line); border-radius:14px; padding:16px; background:#fff; }
+      code,pre { font-family:Consolas,"SFMono-Regular",Menlo,monospace; } code { padding:.1em .4em; border-radius:6px; background:#f1eee8; }
+      pre { overflow-x:auto; padding:16px; border-radius:14px; background:#f7f4ef; border:1px solid var(--line); }
+      table { width:100%; border-collapse:collapse; margin:14px 0; font-size:14px; } th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; } th { background:#faf7f2; }
+      .mermaid { background:#fcfaf7; border:1px solid var(--line); border-radius:14px; padding:14px; overflow-x:auto; }
+      @media (max-width:760px) { .toc ul { columns:1; } }
+    </style>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "default" });
+    </script>
+  </head>
+  <body>
+    <div class="page">
+      <section class="hero">
+        <h1>Gogo Agent Architecture and Graph Spec</h1>
+        <p class="muted">Python 复刻版主文档。本文保持 JS 版中我认为正确的结构：TravelAdvisor 是用户入口，TripPlanningGraphV2 是唯一复杂规划 graph，proposal、provider error、fallback、contracts、application services 都有清晰边界。</p>
+        <div class="badge-row"><span class="badge">One Graph</span><span class="badge">TravelAdvisor</span><span class="badge">Python LangGraph</span><span class="badge">Pydantic Contracts</span><span class="badge">Proposal First</span><span class="badge">Error Propagation</span></div>
+      </section>
+      <section class="toc"><h2>目录</h2><ul><li><a href="#overview">1. 总体目标</a></li><li><a href="#decisions">2. 核心决策</a></li><li><a href="#responsibility">3. 职责边界</a></li><li><a href="#flow">4. 总体调用链</a></li><li><a href="#graph">5. TripPlanningGraphV2</a></li><li><a href="#nodes">6. Node 职责</a></li><li><a href="#sequences">7. 时序图</a></li><li><a href="#contracts">8. 核心 Contracts</a></li><li><a href="#proposal">9. Proposal 边界</a></li><li><a href="#provider">10. Provider 与错误上透</a></li><li><a href="#llm-fallback-matrix">10.1 LLM / 规则 / Fallback 矩阵</a></li><li><a href="#app">11. Application Services</a></li><li><a href="#persistence">12. 状态与持久化边界</a></li><li><a href="#modules">13. 模块结构</a></li><li><a href="#codebase-guide">13.1 代码文件夹导览</a></li><li><a href="#implementation">14. 当前实现同步</a></li><li><a href="#testing">15. 测试覆盖</a></li><li><a href="#rules">16. 记录规则</a></li></ul></section>
+      <section class="section" id="overview"><h2>1. 总体目标</h2><p>系统只把需要并行研究、跨领域合成、明确重排的任务放进 graph。普通对话、追问、轻量咨询和 proposal 执行都留在 graph 外，由 TravelAdvisor 和 application services 编排。</p><p><code>TripPlanningGraphV2</code> 是唯一复杂规划 graph，负责 <code>initial_plan</code>、<code>regenerate_recommendations</code> 和已有 trip 上的 <code>day_replan / cross_day_replan / full_replan</code> proposal 生成。</p><div class="callout"><strong>一句话：</strong>用户只面对一个 LLM 输入窗口；TravelAdvisor 自主判断走轻量咨询还是明确重排；LightweightFlows 可以直接回答或调用 specialist context，但不能修改 trip；graph 只负责复杂规划和明确重排；正式行程修改必须先生成 TripProposal。</div></section>
+      <section class="section" id="decisions"><h2>2. 核心决策</h2><div class="grid"><div class="card"><h4>One Graph Only</h4><p>只保留一个复杂规划 graph，避免多 graph / 多 agent runtime 重叠。</p></div><div class="card"><h4>Minimal Nodes</h4><p>graph 保持 skeleton、三类 research、barrier、candidate merge、recommendation planner、validate、finalize 等必要节点。</p></div><div class="card"><h4>Proposal First</h4><p>任何正式 Trip State 修改都必须先产出 TripProposal，等待用户确认。</p></div><div class="card"><h4>Error as Semantics</h4><p>provider 错误翻译为 ResearchOutcome、GraphErrorEnvelope、AdvisorFallbackDecision。</p></div></div></section>
+      <section class="section" id="responsibility"><h2>3. 职责边界</h2><table><thead><tr><th>对象</th><th>负责</th><th>不负责</th><th>Python 状态</th></tr></thead><tbody><tr><td>TravelAdvisor</td><td>总入口、总质量把关、追问/路由结果汇总、graph 结果转译、fallback、proposal execution。</td><td>不直接做 specialist research，也不把所有 replan 细分规则写在自己内部。</td><td>已落地 <code>backend/agent/travel_advisor.py</code>，兼容 JS 版 replace_hotel / replace_node / replace_transport intent，支持 camelCase 输入标准化，并消费 ClarificationPolicy、ReplanIntentRouter、SpecialistSelector 的结构化结论。</td></tr><tr><td>ClarificationPolicy</td><td>在 graph 前用 LLM 判断初始规划信息是否足够；信息不足时返回固定格式追问。</td><td>不生成正式行程，不进入 graph，不执行 proposal。</td><td>已落地 <code>backend/agent/clarification_policy.py</code>；优先调用 provider 的 <code>generate_clarification_decision</code>，并用 <code>ClarificationDecision</code> schema 校验；模型失败时才 fallback 到最小安全追问。</td></tr><tr><td>ReplanIntentRouter</td><td>判断用户这句话属于 initial_plan、discussion_turn、local_node_proposal、day_replan、cross_day_replan、regenerate_recommendations 还是 lightweight_research。</td><td>不生成行程，不查 API；只做路由判断。</td><td>已落地 <code>backend/agent/replan_intent_router.py</code>；优先调用 provider 的 <code>generate_replan_routing_decision</code>，并用 <code>ReplanRoutingDecision</code> schema 校验；模型失败时才走最小规则 fallback。</td></tr><tr><td>SpecialistSelector</td><td>判断这次请求需要 stay、mobility、experience、weather、ticket、flight、rail、price 哪些专业能力。</td><td>不把 API 拆成 graph node，不直接执行 proposal。</td><td>已落地 <code>backend/agent/specialist_selector.py</code>；优先调用 provider 的 <code>generate_specialist_selection</code>，并用 <code>SpecialistSelection</code> schema 校验；模型失败时才走最小关键词 fallback。</td></tr><tr><td>PlanningBriefBuilder</td><td>把用户消息和 intent 整理成 PlanningBrief。</td><td>不做规划生成。</td><td>已落地 <code>planning_brief_builder.py</code>：优先用 LLM 提取 PlanningBrief；<code>intent_extraction.py</code> 仅做最小安全 fallback，不再规则猜测用户字段，也不默认猜三天。</td></tr><tr><td>LightweightFlows</td><td>Trip Board consultation layer: direct_answer and contextual_research.</td><td>Does not enter the complex graph, does not create TripProposal, and does not mutate trip.</td><td>answer/research use the same real model provider. contextual_research receives current trip, target node, and routing.specialistSelection. Free-text replace/check/compare turns are consultative by default; only explicit replan/edit intent enters graph proposal.</td></tr><tr><td>TripPlanningGraphV2</td><td>复杂规划、研究合并、候选校验、最终输出。</td><td>不执行 proposal，不负责用户沟通。</td><td>已落地 initial plan、regenerate_recommendations 复用完整推荐 graph、cross_day_replan LLM proposal 和 graph_error 中断；已有 trip 的 replan 直达 proposal 生成，不再跑 initial research 链路。</td></tr><tr><td>ProposalService</td><td>proposal 保存、状态机、history。</td><td>不重新规划。</td><td>已落地内存版，并拒绝空 operations proposal。</td></tr><tr><td>ApplicationServices</td><td>创建 run、调用 advisor、返回 run accepted。</td><td>不直接调用模型。</td><td>已落地 Python 入口，复用 graph provider，并返回结构化 proposal status 结果。</td></tr></tbody></table></section>
+      <section class="section" id="flow"><h2>4. Overall Flow</h2><p>This version keeps the chat-import entry, but the user no longer sees three candidate recommendation options. The initial chat request enters the full graph, the graph may still compare candidates internally, and <code>TripBoardBuilder</code> converts the selected best plan into one editable <code>TripBoardResponse</code>. After the user enters Trip Board, board changes remain proposal-first.</p><div class="mermaid">flowchart TD
+U["Initial chat request"] --> A["ApplicationServices"]
+A --> B["TravelAdvisor"]
+B --> C["ClarificationPolicy"]
+C -->|needs info| Q["clarification_question"]
+Q --> U
+C -->|ready| D["ReplanIntentRouter"]
+D --> G{"Route"}
+G -->|initial plan or regenerate| I["TripPlanningGraph"]
+I --> I1["stay / mobility / experience parallel research"]
+I1 --> I2["candidate merge + planner + validator"]
+I2 --> I3["internal RecommendationSet candidates"]
+I3 --> BOARD["TripBoardBuilder chooses one board"]
+BOARD --> OUT2["TripBoardResponse"]
+OUT2 --> TB["Trip Board"]
+G -->|direct answer| H["LightweightFlows.answer"]
+H --> OUT1["Answer"]
+G -->|lightweight consultation| E["SpecialistSelector"]
+E --> F["PlanningBriefBuilder"]
+F --> H2["LightweightFlows.contextual_research"]
+H2 --> OUT1
+G -->|explicit day / cross-day / full replan| K["TripPlanningGraph.replan"]
+K --> P
+TB --> BOARDOPS["One LLM input window"]
+BOARDOPS --> D
+P --> OUT3["TripProposal pending"]
+OUT3 --> L{"User accepts?"}
+L -->|yes| M["ProposalExecutor"]
+M --> OUT4["New trip version"]
+L -->|no| OUT5["Trip unchanged"]
+I -->|model or validation failure| FB["AdvisorFallbackDecision"]
+K -->|unclear target or model failure| FB
+H -->|model failure| FB
+H2 -->|model failure| FB
+FB --> OUT6["Safe fallback answer"]</div><h3>How To Read This Flow</h3><table><thead><tr><th>Stage</th><th>Responsibility</th><th>Output</th></tr></thead><tbody><tr><td>Initial chat import</td><td>User describes the trip in natural language. <code>ClarificationPolicy</code> asks follow-up questions only when the request is too underspecified.</td><td><code>clarification_question</code> or planning continues</td></tr><tr><td>Initial full planning</td><td><code>TripPlanningGraph</code> runs stay, mobility, and experience research in parallel. It can keep candidate comparison internally, but users do not choose from three options.</td><td>internal <code>RecommendationSet</code></td></tr><tr><td>Build one Trip Board</td><td><code>TripBoardBuilder</code> selects the best recommendation candidate and converts its day plans into editable trip days and nodes.</td><td><code>TripBoardResponse</code></td></tr><tr><td>Trip Board consultation</td><td>Users still see one LLM input window. TravelAdvisor decides whether the turn can be answered directly or needs contextual research. If the selected node is stay / mobility / experience, the matching specialist is selected by default.</td><td><code>AnswerResponse</code>; no trip mutation</td></tr><tr><td>Explicit replan</td><td>Only explicit day, cross-day, or full-trip replan/edit intent enters <code>TripPlanningGraph.replan</code>.</td><td>graph <code>TripProposal</code></td></tr><tr><td>Proposal First</td><td>Every real trip mutation is saved as a pending proposal first. The trip changes only after the user accepts it.</td><td>new trip version or unchanged trip</td></tr></tbody></table></section>
+      <section class="section" id="graph"><h2>5. TripPlanningGraphV2</h2><h3>Graph Flow</h3><div class="mermaid">flowchart LR
+A["TravelAdvisor"] --> B["PlanningBriefBuilder"] --> C["TripPlanningGraphV2"]
+subgraph G["TripPlanningGraphV2"]
+N1["skeleton_planning_node"] --> N2["stay_research_node"]
+N1 --> N3["mobility_research_node"]
+N1 --> N4["experience_research_node"]
+N2 --> NB["research_barrier_node"]
+N3 --> NB
+N4 --> NB
+NB --> N5["candidate_merge_node"]
+NB --> GE["graph_error"]
+N5 --> NP["recommendation_planner_node"] --> N6["validate_candidates_node"] --> N7["finalize_output_node"]
+end
+N7 --> O1["internal RecommendationSet"]
+N7 --> O2["TripProposal"]
+C --> O3["graph_error"]
+O1 --> TB["TripBoardBuilder"]
+TB --> O4["TripBoardResponse"]</div><p>Python 当前已实现 initial_plan、graph_error、candidate_merge/recommendation_planner/validate/finalize 主链，并支持 cross_day_replan 由 LLM 生成 TripProposal operations。初始规划中 stay、mobility、experience 三类 research 是真实并行 specialist 分支，全部完成后先进入 research_barrier_node；如果任一分支产生 GraphErrorEnvelope，则 barrier 中断到 graph_error，否则进入 candidate_merge_node，再由 recommendation_planner_node 基于候选上下文生成内部推荐候选，最后由 TripBoardBuilder 选择一个最佳方案并转换成前端可编辑的 TripBoardResponse。用户不再看到三套候选推荐集。cross_day_replan 不再跑 initial research 链路，而是直接定位 affected nodes 并生成 proposal。Python 类名 <code>TripPlanningGraph</code> 对应本文档中的 <code>TripPlanningGraphV2</code>。</p></section>
+      <section class="section" id="nodes"><h2>6. Node 职责</h2><table><thead><tr><th>Node</th><th>职责</th><th>Python 文件</th><th>状态</th></tr></thead><tbody><tr><td>skeleton_planning_node</td><td>生成行程骨架。</td><td><code>backend/agent/nodes/skeleton_planning_node.py</code></td><td>已同步</td></tr><tr><td>stay_research_node</td><td>住宿研究；后续接酒店/民宿 API。</td><td><code>stay_research_node.py</code></td><td>已接入 run_research_step，待酒店 API key</td></tr><tr><td>mobility_research_node</td><td>交通/周边游研究；后续接地图/高铁/飞机 API。</td><td><code>mobility_research_node.py</code></td><td>已接入 run_research_step，待交通 API key</td></tr><tr><td>experience_research_node</td><td>体验/美食研究；已先接入天气 API context。</td><td><code>experience_research_node.py</code></td><td>已接入 run_research_step 和 Open-Meteo weather context</td></tr><tr><td>research_barrier_node</td><td>等待 stay / mobility / experience 三个并行 research 分支完成；如任一分支失败则中断到 graph_error。</td><td><code>backend/agent/graph/trip_planning_graph.py</code></td><td>已同步</td></tr><tr><td>candidate_merge_node</td><td>把三个子系统输出归一化为 planner 可读的候选上下文。</td><td><code>candidate_merge_node.py</code></td><td>已同步</td></tr><tr><td>recommendation_planner_node</td><td>调用 LLM 基于候选上下文生成内部推荐候选。</td><td><code>recommendation_planner_node.py</code></td><td>已同步；失败时返回 graph_error，不退回占位 composer</td></tr><tr><td>validate_candidates_node</td><td>校验候选。</td><td><code>validate_candidates_node.py</code></td><td>已同步 missing_evidence、low_score 和基础结构校验；全部失败会返回 graph_error</td></tr><tr><td>finalize_output_node</td><td>输出内部 RecommendationSet 或 graph TripProposal。</td><td><code>finalize_output_node.py</code></td><td>initial_plan 的内部 RecommendationSet 会由 TravelAdvisor 交给 TripBoardBuilder 转成 TripBoardResponse；replan operations 会硬校验 target nodes</td></tr></tbody></table></section>
+      <section class="section" id="sequences">
+        <h2>7. 时序图</h2>
+        <h3>7.1 初始规划</h3>
+        <div class="mermaid">sequenceDiagram
+autonumber
+participant U as User
+participant TA as TravelAdvisor
+participant PB as PlanningBriefBuilder
+participant GP as TripPlanningGraphV2
+participant ST as Stay Specialist
+participant MO as Mobility Specialist
+participant EX as Experience Specialist
+participant RB as research_barrier_node
+participant CM as candidate_merge_node
+participant RP as recommendation_planner_node
+participant VA as validate_candidates_node
+participant FI as finalize_output_node
+U->>TA: 输入模糊旅行需求
+TA->>PB: 构建 PlanningBrief
+PB-->>TA: PlanningBrief(initial_plan)
+TA->>GP: run(initial_plan)
+par 并行住宿研究
+GP->>ST: ResearchBrief(stay)
+ST-->>GP: ResearchOutcome(stay)
+and 并行交通研究
+GP->>MO: ResearchBrief(mobility)
+MO-->>GP: ResearchOutcome(mobility)
+and 并行体验研究
+GP->>EX: ResearchBrief(experience)
+EX-->>GP: ResearchOutcome(experience)
+end
+GP->>RB: 等待三类 research 完成
+alt 任一 research 失败
+RB-->>TA: GraphErrorEnvelope
+TA-->>U: fallback answer
+else 全部成功
+RB->>CM: 归一化候选上下文
+CM->>RP: candidateContext
+RP->>VA: 完整 Recommendation[]
+VA->>FI: 生成内部 RecommendationSet
+FI-->>TA: internal RecommendationSet
+TA->>TA: TripBoardBuilder 转成一个 TripBoardResponse
+TA-->>U: 返回一个可编辑 Trip Board
+end</div>
+        <h3>7.2 跨天重规划</h3>
+        <div class="mermaid">sequenceDiagram
+autonumber
+participant U as User
+participant TA as TravelAdvisor
+participant RR as ReplanIntentRouter
+participant SS as SpecialistSelector
+participant PB as PlanningBriefBuilder
+participant GP as TripPlanningGraphV2
+participant PS as ProposalService
+U->>TA: 提出局部修改请求
+TA->>RR: 判断修改范围(scope)
+RR-->>TA: day_replan / cross_day_replan / regenerate_recommendations
+TA->>SS: 判断需要哪些 specialist needs
+SS-->>TA: weather / ticket / mobility / price ...
+TA->>PB: 构建 PlanningBrief(day_replan 或 cross_day_replan)
+TA->>GP: run(cross_day_replan)
+GP-->>TA: TripProposal 或 graph_error
+alt TripProposal
+TA->>PS: persistProposal
+PS-->>TA: pending/conflicted TripProposal
+TA-->>U: 展示提案，等待确认
+else graph_error
+TA-->>U: answer + AdvisorFallbackDecision
+end</div>
+      </section>
+      <section class="section" id="contracts">
+        <h2>8. &#26680;&#24515; Contracts</h2>
+        <p>All backend Pydantic/Enum schemas are listed one-by-one from <code>backend/agent/contracts/</code>. Internal fields use <code>snake_case</code>; response aliases/adapters expose frontend-friendly <code>camelCase</code> where needed.</p>
+        <table>
+          <thead><tr><th>&#25991;&#20214;</th><th>Schema</th><th>&#23383;&#27573;</th><th>&#29992;&#36884;</th></tr></thead>
+          <tbody>
+            <tr><td><code>advisor_io.py</code></td><td><code>TravelAdvisorRequest</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>user_id</code>: str<br><code>conversation_id</code>: str<br><code>user_message</code>: str<br><code>trip</code>: dict[str, Any] | None<br><code>intent</code>: dict[str, Any] | None</td><td>External request accepted by TravelAdvisor.</td></tr>
+            <tr><td><code>advisor_io.py</code></td><td><code>AnswerResponse</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>kind</code>: str<br><code>routing</code>: dict<br><code>planning_brief</code> / alias <code>planningBrief</code>: dict<br><code>text</code>: str<br><code>fallback</code>: dict[str, Any] | None</td><td>Direct answer or fallback answer payload.</td></tr>
+            <tr><td><code>advisor_io.py</code></td><td><code>ClarificationQuestionResponse</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>kind</code>: str<br><code>routing</code>: dict<br><code>planning_brief</code> / alias <code>planningBrief</code>: dict<br><code>questions</code>: list[dict]<br><code>text</code>: str<br><code>reason</code>: str | None</td><td>Graph-before clarification response. Frontend can render these questions instead of treating them as a normal answer.</td></tr>
+            <tr><td><code>advisor_io.py</code></td><td><code>ProposalResponse</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>kind</code>: str<br><code>routing</code>: dict<br><code>planning_brief</code> / alias <code>planningBrief</code>: dict<br><code>proposal</code>: TripProposal<br><code>frontend_proposal</code> / alias <code>frontendProposal</code>: dict</td><td>TripProposal response plus frontendProposal adapter.</td></tr>
+            <tr><td><code>advisor_io.py</code></td><td><code>RecommendationSetResponse</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>kind</code>: str<br><code>routing</code>: dict<br><code>planning_brief</code> / alias <code>planningBrief</code>: dict<br><code>recommendation_set</code> / alias <code>recommendationSet</code>: RecommendationSet<br><code>trace</code>: list</td><td>Initial planning recommendation-set response.</td></tr>
+            <tr><td><code>trip_board.py</code></td><td><code>TripBoardResponse</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>kind</code>: str<br><code>routing</code>: dict<br><code>planning_brief</code> / alias <code>planningBrief</code>: dict<br><code>trip</code>: dict<br><code>source_recommendation</code> / alias <code>sourceRecommendation</code>: dict | None<br><code>source_recommendation_set</code> / alias <code>sourceRecommendationSet</code>: dict | None<br><code>evidence</code>: list<br><code>warnings</code>: list[str]<br><code>trace</code>: list[dict]</td><td>Advisor response for chat-import initial planning. The graph may produce internal recommendation candidates, but the frontend receives one editable Trip Board.</td></tr>
+            
+            
+            
+            
+            <tr><td><code>planning.py</code></td><td><code>PlanningBrief</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>mode</code>: str<br><code>origin_message</code>: str<br><code>builder_source</code>: str | None<br><code>builder_fallback_reason</code>: str | None<br><code>traveler_count</code>: int | None<br><code>date_range</code>: str | None<br><code>duration_days</code>: int | None<br><code>budget</code>: str | None<br><code>pace</code>: str | None<br><code>destination_candidates</code>: list<br><code>interests</code>: list<br><code>dislikes</code>: list<br><code>hard_constraints</code>: list<br><code>soft_preferences</code>: list<br><code>affected_day_ids</code>: list<br><code>affected_node_ids</code>: list</td><td>Normalized task brief produced by PlanningBriefBuilder. <code>builder_source</code> records whether it came from LLM or fallback; <code>builder_fallback_reason</code> records why fallback was used.</td></tr>
+            <tr><td><code>planning.py</code></td><td><code>TripPlanningGraphRequest</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>run_id</code>: str<br><code>user_id</code>: str<br><code>trip_id</code>: str | None<br><code>mode</code>: str<br><code>planning_brief</code>: PlanningBrief<br><code>trip_snapshot</code>: dict | None<br><code>constraints</code>: list<br><code>preferences</code>: list</td><td>Input request for TripPlanningGraphV2.</td></tr>
+            <tr><td><code>clarification.py</code></td><td><code>ClarificationQuestion</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>id</code>: str<br><code>text</code>: str<br><code>required</code>: bool<br><code>answer_type</code>: str</td><td>One question Advisor asks before starting initial planning.</td></tr>
+            <tr><td><code>clarification.py</code></td><td><code>ClarificationDecision</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>should_ask</code>: bool<br><code>questions</code>: list[ClarificationQuestion]<br><code>reason</code>: str | None</td><td>Output of ClarificationPolicy.</td></tr>
+            <tr><td><code>graph_state.py</code></td><td><code>TripPlanningGraphState</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>run_id</code>: str<br><code>trip_id</code>: str | None<br><code>mode</code>: str<br><code>planning_brief</code>: PlanningBrief<br><code>trip_snapshot</code>: dict | None<br><code>skeleton_plan</code>: dict | None<br><code>stay_outcome</code>: research_outcome.ResearchOutcome | None<br><code>mobility_outcome</code>: research_outcome.ResearchOutcome | None<br><code>experience_outcome</code>: research_outcome.ResearchOutcome | None<br><code>stay_result</code>: research.ResearchResult | None<br><code>mobility_result</code>: research.ResearchResult | None<br><code>experience_result</code>: research.ResearchResult | None<br><code>recommendations</code>: list<br><code>validation_result</code>: validation.ValidationResult | None<br><code>final_recommendation_set</code>: recommendation_output.RecommendationSet | None<br><code>final_trip_proposal</code>: routing_and_proposal.TripProposal | None<br><code>trace</code>: list<br><code>status</code>: str<br><code>error</code>: str | None<br><code>graph_error</code>: errors.GraphErrorEnvelope | None</td><td>Single-run LangGraph state.</td></tr>
+            <tr><td><code>research.py</code></td><td><code>ResearchBrief</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>brief_id</code>: str<br><code>domain</code>: str<br><code>mode</code>: str<br><code>planning_brief</code>: dict<br><code>skeleton_plan</code>: dict<br><code>trip_snapshot</code>: dict | None<br><code>constraints</code>: list<br><code>max_options</code>: int</td><td>Input for one specialist research branch.</td></tr>
+            <tr><td><code>research.py</code></td><td><code>ResearchOption</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>id</code>: str | None<br><code>title</code>: str | None<br><code>label</code>: str | None<br><code>name</code>: str | None<br><code>rationale</code>: str | None</td><td>One option inside a research result.</td></tr>
+            <tr><td><code>research.py</code></td><td><code>ResearchResult</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>domain</code>: str<br><code>summary</code>: str<br><code>options</code>: list<br><code>warnings</code>: list<br><code>missing_info</code>: list<br><code>evidence</code>: list<br><code>assumptions</code>: list<br><code>confidence</code>: float | None<br><code>raw</code>: dict</td><td>Structured output from a research provider.</td></tr>
+            <tr><td><code>research_outcome.py</code></td><td><code>ResearchOutcome</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>domain</code>: str<br><code>status</code>: str<br><code>result</code>: research.ResearchResult | None<br><code>reason</code>: str | None<br><code>retryable</code>: bool<br><code>error_code</code>: str | None</td><td>Success/failure wrapper for a research step.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>TripIntent</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>destination</code>: str | None<br><code>duration_days</code>: int | None<br><code>traveler_count</code>: int | None<br><code>budget</code>: str | None<br><code>pace</code>: str | None<br><code>interests</code>: list<br><code>origin_message</code>: str</td><td>User travel intent summary inside RecommendationSet.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>StayPlan</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>anchor_area</code>: str<br><code>nights</code>: int | None<br><code>rationale</code>: str<br><code>hotel_switches</code>: int</td><td>Accommodation strategy.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>DayTripPlan</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>destination</code>: str<br><code>transport</code>: str | None<br><code>estimated_one_way_time</code>: str | None<br><code>transfer_pressure</code>: str | None<br><code>rationale</code>: str | None</td><td>Day-trip destination and transport plan.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>MobilityPlan</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>day_trip</code>: DayTripPlan</td><td>Mobility wrapper around day_trip.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>FoodPlan</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>must_try</code>: list<br><code>suggested_areas</code>: list<br><code>reservation_notes</code>: list</td><td>Food recommendation structure.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>DayBlock</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>time_of_day</code>: str<br><code>type</code>: str<br><code>title</code>: str<br><code>location</code>: str | None<br><code>duration</code>: str | None<br><code>rationale</code>: str | None</td><td>One activity block inside a day.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>DayPlan</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>day</code>: int<br><code>title</code>: str<br><code>area</code>: str | None<br><code>pace</code>: str | None<br><code>blocks</code>: list</td><td>One day itinerary.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>TravelPlanRecommendation</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>id</code>: str<br><code>title</code>: str<br><code>theme</code>: str<br><code>summary</code>: str<br><code>best_for</code>: list<br><code>tradeoffs</code>: list<br><code>confidence</code>: float | None<br><code>stay_plan</code>: StayPlan<br><code>day_plans</code>: list<br><code>mobility_plan</code>: MobilityPlan<br><code>food_plan</code>: FoodPlan<br><code>evidence</code>: list<br><code>missing_info</code>: list<br><code>warnings</code>: list<br><code>source</code>: str<br><code>score</code>: float</td><td>One complete travel plan candidate.</td></tr>
+            <tr><td><code>recommendation_output.py</code></td><td><code>RecommendationSet</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>type</code>: str<br><code>version</code>: str<br><code>trip_intent</code>: TripIntent<br><code>recommendations</code>: list</td><td>Final set of recommendations for display.</td></tr>
+            <tr><td><code>replan_routing.py</code></td><td><code>ReplanScope</code><br><span class="muted">Enum values</span></td><td><code>initial_plan</code><br><code>discussion_turn</code><br><code>local_node_proposal</code><br><code>day_replan</code><br><code>cross_day_replan</code><br><code>regenerate_recommendations</code><br><code>lightweight_research</code></td><td>Product-level scope for one user turn.</td></tr>
+            <tr><td><code>replan_routing.py</code></td><td><code>ReplanNeed</code><br><span class="muted">Enum values</span></td><td><code>stay</code><br><code>mobility</code><br><code>experience</code><br><code>weather</code><br><code>ticket</code><br><code>flight</code><br><code>rail</code><br><code>price</code></td><td>Specialist capability/API-backed check needed for this turn.</td></tr>
+            <tr><td><code>replan_routing.py</code></td><td><code>ReplanRoutingDecision</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>scope</code>: ReplanScope<br><code>decision</code>: str<br><code>output_kind</code>: str<br><code>affected_day_ids</code>: list<br><code>affected_node_ids</code>: list<br><code>reasons</code>: list</td><td>Output of ReplanIntentRouter. TravelAdvisor consumes it instead of owning all scope rules inline.</td></tr>
+            <tr><td><code>replan_routing.py</code></td><td><code>SpecialistSelection</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>needs</code>: list[ReplanNeed]<br><code>reasons</code>: list</td><td>Output of SpecialistSelector. It records which specialist abilities are relevant; APIs remain tools inside specialists, not standalone graph nodes.</td></tr>
+            <tr><td><code>routing_and_proposal.py</code></td><td><code>EscalationDecision</code><br><span class="muted">Enum values</span></td><td><code>direct_answer</code><br><code>lightweight_research</code><br><code>local_proposal</code><br><code>graph_replan</code><br><code>regenerate_recommendations</code></td><td>Routing decision enum.</td></tr>
+            <tr><td><code>routing_and_proposal.py</code></td><td><code>ProposalOperation</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>type</code>: str<br><code>day_id</code>: str | None<br><code>node_id</code>: str | None<br><code>patch</code>: dict[str, Any] | None<br><code>replacement</code>: dict[str, Any] | None</td><td>One mutation operation inside a proposal.</td></tr>
+            <tr><td><code>routing_and_proposal.py</code></td><td><code>ProposalImpact</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>affected_day_ids</code>: list<br><code>requires_recalc_segment_ids</code>: list</td><td>Affected scope of a proposal.</td></tr>
+            <tr><td><code>routing_and_proposal.py</code></td><td><code>ProposalEvidence</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>id</code>: str<br><code>kind</code>: str<br><code>text</code>: str</td><td>Evidence attached to a proposal.</td></tr>
+<tr><td><code>routing_and_proposal.py</code></td><td><code>TripProposal</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>proposal_id</code>: str<br><code>trip_id</code>: str<br><code>base_version</code>: int<br><code>scope</code>: str<br><code>title</code>: str<br><code>summary</code>: str<br><code>reasons</code>: list<br><code>warnings</code>: list<br><code>operations</code>: list, required non-empty<br><code>impact</code>: ProposalImpact<br><code>evidence</code>: list<br><code>status</code>: str</td><td>Proposal-first object before mutating Trip State.</td></tr>
+            <tr><td><code>errors.py</code></td><td><code>GraphErrorEnvelope</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>layer</code>: str<br><code>decision</code>: str<br><code>retryable</code>: bool<br><code>error_code</code>: str | None<br><code>failed_domains</code>: list<br><code>message</code>: str<br><code>provider_status</code>: int | None</td><td>Structured graph/provider error.</td></tr>
+<tr><td><code>errors.py</code></td><td><code>AdvisorFallbackDecision</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>layer</code>: str<br><code>decision</code>: str<br><code>message</code>: str<br><code>source</code>: str<br><code>retryable</code>: bool<br><code>graph_error</code>: errors.GraphErrorEnvelope | None<br><code>missing</code>: list<br><code>error</code>: str | None<br><code>error_code</code>: str | None<br><code>reason</code>: str | None</td><td>Fallback decision returned by TravelAdvisor.</td></tr>
+            <tr><td><code>run_events.py</code></td><td><code>RunMetadata</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>run_id</code>: str<br><code>mode</code>: str<br><code>user_id</code>: str<br><code>conversation_id</code>: str | None<br><code>discussion_id</code>: str | None<br><code>trip_id</code>: str | None<br><code>status</code>: str<br><code>started_at</code>: datetime</td><td>Application-service run metadata.</td></tr>
+            <tr><td><code>run_events.py</code></td><td><code>AgentRunAccepted</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>kind</code>: str<br><code>run</code>: RunMetadata<br><code>output</code>: Any</td><td>Run accepted response wrapper.</td></tr>
+            <tr><td><code>run_events.py</code></td><td><code>RunEvent</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>event_id</code>: str<br><code>run_id</code>: str<br><code>type</code>: str<br><code>timestamp</code>: datetime<br><code>payload</code>: dict</td><td>Run event record.</td></tr>
+            <tr><td><code>validation.py</code></td><td><code>CandidateValidationResult</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>candidate_id</code>: str<br><code>status</code>: str<br><code>reasons</code>: list</td><td>Validation result for one candidate.</td></tr>
+            <tr><td><code>validation.py</code></td><td><code>ValidationResult</code><br><span class="muted">Pydantic BaseModel</span></td><td><code>candidate_results</code>: list<br><code>overall_status</code>: str</td><td>Overall validation result.</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="section" id="proposal"><h2>9. Proposal 边界</h2><p>所有正式行程修改都先生成 <code>TripProposal</code>。Python 已复刻内存版 <code>ProposalService</code> 与 <code>ProposalExecutor</code>，支持 pending/conflicted/accepted 等状态与 ReplaceNode / UpdateNode 执行。<code>operations</code> 现在是必填且不能为空；<code>ReplaceNode</code> 必须包含 day_id、node_id、replacement，<code>UpdateNode</code> 必须包含 day_id、node_id、patch。Executor 不再静默跳过无效操作：找不到 day/node、未知操作类型或缺少 payload 时会直接失败，也不会升级 trip version。ReplaceNode 已按 JS runtime 语义执行：保留旧 node，再用 replacement 覆盖字段。后端内部保留 snake_case Pydantic contract，同时在 proposal response 中提供 <code>frontendProposal</code> camelCase 适配，方便现有 JS 页面读取。</p></section>
+      <section class="section" id="provider"><h2>10. Provider 与错误上透</h2><p><code>QwenResearchProvider</code> 使用 DashScope OpenAI-compatible <code>/chat/completions</code>。它支持这些模型/数据调用：<code>generate_clarification_decision</code> 返回 JSON ClarificationDecision payload，<code>generate_replan_routing_decision</code> 返回 JSON ReplanRoutingDecision payload，<code>generate_specialist_selection</code> 返回 JSON SpecialistSelection payload，<code>generate_planning_brief</code> 返回 JSON PlanningBrief payload，<code>generate_research</code> 返回 JSON research payload，<code>generate_recommendations</code> 返回完整 recommendation JSON，<code>generate_replan_proposal</code> 返回真实 TripProposal operations JSON，<code>generate_local_proposal</code> 返回局部替换 proposal JSON，<code>generate_answer</code> 返回普通文本 answer；另外 <code>get_weather_context</code> 会调用 Open-Meteo 天气 API，为体验节点提供天气上下文。缺配置、HTTP、网络、超时、响应解析错误会包装成 <code>LlmProviderError</code> 或写入 API warnings。</p><p><code>ClarificationPolicy</code> 的 I/O contract：输入是用户原始文本和 intent；优先调用 provider 的 <code>generate_clarification_decision(system_prompt, user_prompt)</code>；输出必须通过 <code>ClarificationDecision</code> Pydantic schema 校验；模型不可用或返回无效 JSON 时使用最小安全 fallback，追问目的地和天数。</p><p><code>ReplanIntentRouter</code> 的 I/O contract：输入是用户原始文本、intent、是否有 current trip；优先调用 provider 的 <code>generate_replan_routing_decision(system_prompt, user_prompt)</code>；输出必须通过 <code>ReplanRoutingDecision</code> Pydantic schema 校验；模型不可用或返回无效 JSON 时使用最小规则 fallback。</p><p><code>SpecialistSelector</code> 的 I/O contract：输入是用户原始文本、route、planning brief；优先调用 provider 的 <code>generate_specialist_selection(system_prompt, user_prompt)</code>；输出必须通过 <code>SpecialistSelection</code> Pydantic schema 校验；模型不可用或返回无效 JSON 时使用最小关键词 fallback。</p><p><code>PlanningBriefBuilder</code> 的 I/O contract：输入是用户原始文本 <code>user_message</code>；优先调用 provider 的 <code>generate_planning_brief(system_prompt, user_prompt)</code>；输出必须通过 <code>PlanningBrief</code> Pydantic schema 校验；成功时写入 <code>builder_source=llm</code>；模型不可用或返回无效 JSON 时使用最小安全 fallback，写入 <code>builder_source=fallback</code> 和 <code>builder_fallback_reason</code>。fallback 仅保留 <code>mode=initial_plan</code> 和 <code>origin_message</code>，不规则猜测目的地、天数、兴趣、预算或偏好。普通问答会使用 <code>discussion_turn</code> brief，本地替换会使用 <code>local_proposal</code> brief，跨天重排会使用 <code>cross_day_replan</code> brief。</p><p><code>LightweightFlows.contextual_research</code> I/O contract: input is current trip, target node, user consultation text, and <code>routing.specialistSelection</code>; it calls provider <code>generate_answer(system_prompt, user_prompt)</code>; output must remain an AnswerResponse. It must not generate TripProposal or mutate trip. If the target node type is stay / mobility / experience, TravelAdvisor adds the matching specialist need by default.</p><p><code>recommendation_planner_node</code> 的 I/O contract：输入是 PlanningBrief、skeleton plan 和 candidateContext；输出必须是 3 个完整 <code>TravelPlanRecommendation</code>。planner 失败时返回 <code>graph_error</code>，不再退回占位 recommendation composer。</p><div class="mermaid">flowchart LR
+E["LlmProviderError"] --> P["ProviderFailurePolicy"] --> R["ResearchOutcome"]
+P --> G["GraphErrorEnvelope"] --> A["AdvisorFallbackDecision"]</div></section>
+      <section class="section" id="llm-fallback-matrix"><h2>10.1 LLM / Rules / Fallback Matrix</h2><table><thead><tr><th>Module</th><th>Main mechanism</th><th>Fallback / rule</th><th>Output</th></tr></thead><tbody><tr><td><code>TravelAdvisor</code></td><td>Main agent and orchestrator.</td><td>Enforces the product boundary: free-text Trip Board turns are consultation; explicit replan/edit turns can produce proposals.</td><td><code>TripBoardResponse</code>, <code>AnswerResponse</code>, <code>ProposalResponse</code>, or clarification.</td></tr><tr><td><code>ReplanIntentRouter</code></td><td>LLM-first route classification.</td><td><code>replace_hotel</code>, <code>replace_node</code>, <code>replace_transport</code>, or <code>kind=replace</code> fall back to lightweight consultation unless the intent is explicit replan/edit.</td><td><code>ReplanRoutingDecision</code>.</td></tr><tr><td><code>SpecialistSelector</code></td><td>LLM-first specialist selection.</td><td>Weather/ticket/price/stay/mobility/experience keywords are fallback signals. If a target node is present, node type also adds the default specialist need.</td><td><code>SpecialistSelection</code>.</td></tr><tr><td><code>LightweightFlows.answer</code></td><td>LLM text answer.</td><td>Provider failure becomes advisor fallback.</td><td><code>AnswerResponse</code>.</td></tr><tr><td><code>LightweightFlows.contextual_research</code></td><td>LLM answer with trip/node/specialist context.</td><td>Never creates <code>TripProposal</code> and never mutates trip.</td><td><code>AnswerResponse</code>.</td></tr><tr><td><code>TripPlanningGraph</code></td><td>LangGraph complex planning and explicit replan.</td><td>Initial planning builds a Trip Board. Explicit day/cross-day/full replan returns graph proposal or graph fallback.</td><td>Internal <code>RecommendationSet</code> -> <code>TripBoardResponse</code>, or <code>TripProposal</code>.</td></tr><tr><td><code>ProposalService / ProposalExecutor</code></td><td>Deterministic proposal state machine and executor.</td><td>Rejects empty operations, missing targets, invalid status transitions, version mismatch, and unsafe patches.</td><td>Updated trip only after accepted proposal.</td></tr></tbody></table></section>
+      <section class="section" id="app"><h2>11. Application Services</h2><p><code>backend/application/agent_application_services.py</code> 已复刻 JS 版 application service 的主要入口：start initial plan run、handle discussion turn、execute proposal、set proposal status。</p></section>
+      <section class="section" id="persistence"><h2>12. 状态与持久化边界</h2><ul><li>Graph state 是单次运行状态，不等同正式 Trip State。</li><li>RecommendationSet 是展示输出，不直接写正式行程。</li><li>TripProposal 是修改正式行程前的 pending 对象。</li><li>当前 Python proposal service 是内存实现，后续可替换为真实数据库。</li></ul></section>
+<section class="section" id="modules"><h2>13. 模块结构</h2><pre><code>manual_agent_playground.py
+backend/
+  application/
+    agent_application_services.py
+  agent/
+    travel_advisor.py
+    clarification_policy.py
+    planning_brief_builder.py
+    intent_extraction.py
+    replan_intent_router.py
+    specialist_selector.py
+    lightweight_flows.py
+    proposal_service.py
+    proposal_executor.py
+    replan_escalation_policy.py
+    graph/trip_planning_graph.py
+    nodes/
+      run_research_step.py
+      skeleton_planning_node.py
+      stay_research_node.py
+      mobility_research_node.py
+      experience_research_node.py
+      candidate_merge_node.py
+      recommendation_planner_node.py
+      validate_candidates_node.py
+      finalize_output_node.py
+    contracts/
+    providers/
+tests_py/test_python_agent.py</code></pre></section>
+      <section class="section" id="codebase-guide"><h2>13.1 代码文件夹导览</h2><p>本节同步自汇报说明，补充 HTML 原本没有展开的文件夹说明。它不改变前面的 graph、contracts、时序图和职责边界，只帮助汇报时解释“这个工作区里每个文件是什么”。</p><h3>根目录文件</h3><table><thead><tr><th>文件</th><th>作用</th><th>备注</th></tr></thead><tbody><tr><td><code>README.md</code></td><td>项目简短说明。</td><td>当前仍偏原型阶段，主要写打开 <code>index.html</code> 查看 prototype；后续需要补正式 Python agent 运行说明。</td></tr><tr><td><code>requirements.txt</code></td><td>Python 依赖文件。</td><td>当前包含 <code>pydantic</code> 和 <code>langgraph</code>：Pydantic 负责 schema/contracts 校验，LangGraph 负责复杂规划 graph。</td></tr><tr><td><code>index.html</code></td><td>前端 demo 入口。</td><td>加载 <code>agent-runtime.js</code> 和 <code>app.js</code>。</td></tr><tr><td><code>styles.css</code></td><td>前端 demo 样式。</td><td>负责页面布局、卡片、地图、drawer、按钮等视觉样式。</td></tr><tr><td><code>app.js</code></td><td>前端 Trip Board demo 主逻辑。</td><td>负责展示旅行计划方向、Trip Board、每日节点、地图点位、右侧 drawer，并模拟 local proposal 和 graph replan 交互；当前部分中文内容存在编码显示风险。</td></tr><tr><td><code>agent-runtime.js</code></td><td>前端 demo 保留的轻量 JS runtime。</td><td>包含 <code>EscalationDecision</code>、<code>decideEscalation</code>、<code>createTripProposal</code>、<code>createProposalService</code>、<code>executeAcceptedProposal</code>；它不是当前 Python 后端主实现，而是浏览器原型模拟。</td></tr><tr><td><code>manual_agent_playground.py</code></td><td>五轮人工端到端测试入口。</td><td>读取 <code>.env</code> 真模型配置，按顺序测试初始规划、上下文追问、选择推荐方案、生成 proposal、接受并执行 proposal；<code>--self-check</code> 可做不调用模型的启动检查。</td></tr><tr><td><code>archive/js-agent-implementation.zip</code></td><td>旧 JS agent 实现归档。</td><td>Python 后端迁移后保留历史版本，方便对照 JS 版结构。</td></tr></tbody></table><h3>后端运行关系</h3><pre><code>manual_agent_playground.py / frontend / application service
+        ↓
+TravelAdvisor
+        ↓
+ClarificationPolicy
+        ↓
+ReplanIntentRouter + SpecialistSelector
+        ↓
+LightweightFlows 或 TripPlanningGraph
+        ↓
+AnswerResponse / RecommendationSetResponse / ProposalResponse</code></pre><h3>Application Services</h3><p><code>backend/application/agent_application_services.py</code> 是后端正式入口的雏形。未来如果要做 HTTP API，这一层可以成为 controller/API 和 agent 之间的服务层。</p><pre><code>start_initial_plan_run(command)
+handle_discussion_turn(command)
+execute_proposal(command)
+set_proposal_status(proposal_id, status)</code></pre><h3>Graph 与 Lightweight 分工</h3><p><code>LightweightFlows</code> 处理 graph 外的轻量任务：普通问答、轻量研究、local proposal。<code>TripPlanningGraph</code> 处理复杂任务：从零生成 3 个推荐方案、换一组推荐、已有 trip 上的 day/cross-day replan proposal。</p><p><strong>local proposal 定义：</strong>用户已经有 current trip，并且这次只想替换一个明确节点，例如一个酒店、餐厅、景点或交通块；系统先生成待确认的 <code>TripProposal</code>，不立刻改正式 trip。local proposal 会找到目标 node 和所属 day，再调用 LLM 生成真实 <code>replacement</code>，代码只负责包装成 <code>ReplaceNode</code> operation。</p><h3>Provider 配置</h3><p><code>backend/agent/providers/qwen_provider.py</code> 是真实模型调用实现，使用 DashScope 的 OpenAI-compatible <code>/chat/completions</code> 格式。</p><pre><code>LLM_API_KEY
+LLM_API_BASE
+LLM_MODEL_NAME
+LLM_TIMEOUT_MS</code></pre><p>Provider 支持 clarification、replan routing、specialist selection、planning brief、research、recommendations、cross-day replan proposal、local proposal 和 answer 等调用；除普通 answer 外，其它结构化输出都需要 JSON 并经过 Pydantic schema 校验。<code>get_weather_context(...)</code> 通过 Open-Meteo 获取天气上下文，先给 experience 子系统使用。</p><h3>Proposal 流程</h3><pre><code>用户提出修改
+  ↓
+TravelAdvisor 判断路由
+  ↓
+explicit graph_replan generates TripProposal
+  ↓
+ProposalService.persist_proposal
+  ↓
+状态变成 pending 或 conflicted
+  ↓
+用户 accepted
+  ↓
+ProposalExecutor.execute
+  ↓
+生成新 trip version</code></pre><p><code>ProposalService</code> 负责保存和管理 proposal 状态；<code>ProposalExecutor</code> 负责真正修改 trip。执行前必须满足 proposal 已 accepted、operations 存在、trip.version 等于 proposal.base_version、operation 合法、day/node 存在；执行成功后才升级 trip version。</p><h3>运行入口与当前缺口</h3><table><thead><tr><th>类型</th><th>命令 / 入口</th><th>说明</th></tr></thead><tbody><tr><td>人工测试</td><td><code>python manual_agent_playground.py</code></td><td>五轮分层人工验收，使用 <code>.env</code> 真模型。</td></tr><tr><td>启动自检</td><td><code>python manual_agent_playground.py --self-check</code></td><td>不调用模型，只检查人工测试入口可启动。</td></tr><tr><td>自动测试</td><td><code>python -m unittest tests_py.test_python_agent</code></td><td>覆盖 schema、routing、graph、proposal、fallback、provider guard 等主逻辑。</td></tr><tr><td>前端 demo</td><td>打开 <code>index.html</code></td><td>当前主要是原型，不是正式接 Python 后端的版本。</td></tr></tbody></table><p>当前还没有完全产品化的部分包括：正式 HTTP API、SSE/流式输出、数据库持久化、真实 selective specialist graph、真实复杂跨天优化算法、完整路线合理性评分、前端 demo 真正接 Python 后端、前端中文编码清理。</p></section>
+      <section class="section" id="implementation"><h2>14. Current Implementation Sync</h2><h3>Implemented</h3><ul><li>Initial chat import returns one <code>TripBoardResponse</code>; internal recommendation candidates are not shown as a three-option user choice.</li><li><code>TravelAdvisor</code> is the single main agent entry and now enforces: free-text Trip Board turns cannot mutate trip.</li><li><code>ReplanIntentRouter</code> routes free-text replace/check/compare to lightweight consultation unless the intent is explicit day/cross-day/full replan.</li><li><code>SpecialistSelector</code> still chooses stay/mobility/experience/weather/ticket/price needs; target node type adds the default specialist need.</li><li><code>LightweightFlows.answer</code> and <code>LightweightFlows.contextual_research</code> call the real provider through <code>generate_answer</code> and return <code>AnswerResponse</code> only.</li><li><code>TripPlanningGraph</code> remains the complex workflow for initial planning, regenerate, and explicit day/cross-day/full replan.</li><li>Graph replan still returns pending <code>TripProposal</code>; <code>ProposalExecutor</code> mutates trip only after user acceptance.</li><li>Provider errors are surfaced as structured fallback instead of template output.</li><li>Python tests cover the new consultation boundary and explicit replan proposal path.</li></ul><h3>Still To Improve</h3><ul><li>Connect real hotel, map, flight, rail, ticket, and price APIs inside the relevant specialists.</li><li>Make specialist context richer than the current selection/context prompt.</li><li>Add HTTP/SSE service wrapper and persistent storage.</li></ul></section>
+      <section class="section" id="testing"><h2>15. Testing</h2><p>Command:</p><pre><code>python -m unittest tests_py.test_python_agent</code></pre><p>Current coverage: 84 tests. Important covered areas include TripBoardResponse initial output, TravelAdvisor routing, free-text replace as consultation, node-type default specialist selection, lightweight provider fallback, explicit replan proposal response, frontendProposal camelCase adapter, proposal safety checks, graph fallback, parallel research barrier, provider config guards, and manual playground flow.</p></section>
+      <section class="section" id="rules"><h2>16. 记录规则</h2><p>新增或修改 contract、graph node、provider error、proposal 状态机、application service 时，必须同步本文档的架构图、模块结构、实现状态和测试覆盖。</p></section>
+    </div>
+  </body>
+</html>
+
+
+
+
+
+
+
+
