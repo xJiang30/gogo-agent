@@ -8,7 +8,6 @@
   const EscalationDecision = Object.freeze({
     DIRECT_ANSWER: "direct_answer",
     LIGHTWEIGHT_RESEARCH: "lightweight_research",
-    LOCAL_PROPOSAL: "local_proposal",
     GRAPH_REPLAN: "graph_replan",
   });
 
@@ -44,8 +43,8 @@
 
     if (input.intent === "replace_hotel" || input.intent === "replace_node" || input.intent === "replace_transport") {
       return {
-        decision: EscalationDecision.LOCAL_PROPOSAL,
-        reasons: ["Change can be closed locally"],
+        decision: EscalationDecision.LIGHTWEIGHT_RESEARCH,
+        reasons: ["Single-node replace text is consultative until the user applies or triggers replan"],
         affectedDayIds,
         affectedNodeIds,
       };

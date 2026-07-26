@@ -8,6 +8,7 @@ for (const token of [
   "node-workbench",
   "workbench-editor",
   "workbench-ai",
+  "llm-message ai",
   "ai-suggestion-card",
   "llm-response-space",
   "data-action=\"ask-node\"",
@@ -32,8 +33,9 @@ assert.ok(styles.includes(".node-workbench"), "styles should define the unified 
 assert.ok(styles.includes(".ai-prompt-grid"), "styles should define prompt shortcuts");
 assert.ok(styles.includes(".ai-suggestion-card"), "styles should define AI suggestion cards");
 assert.ok(styles.includes(".llm-response-space"), "styles should reserve space for LLM answers");
+assert.ok(styles.includes(".llm-message"), "styles should render a traditional LLM message stream");
 
 const aiBoxStart = app.indexOf('<div class="ai-box">');
-const aiBoxEnd = app.indexOf("</div>", app.indexOf("llm-response-space"));
+const aiBoxEnd = app.indexOf("</div>", app.indexOf("ai-question"));
 const suggestionIndex = app.indexOf("${renderAiSuggestionCard(node)}");
 assert.ok(suggestionIndex > aiBoxStart && suggestionIndex < aiBoxEnd, "AI suggestion should render inside the AI dialog box");

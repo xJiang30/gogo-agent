@@ -70,7 +70,11 @@ class TripPlanningGraph:
                 affected_day_ids=intent.get("affected_day_ids", []),
                 affected_node_ids=get_affected_node_ids(intent),
             ),
-            trip_snapshot={**trip, "_proposal_id": proposal_id},
+            trip_snapshot={
+                **trip,
+                "_proposal_id": proposal_id,
+                "_capability_plan": intent.get("capability_plan", {}),
+            },
         )
         state = self.run(request)
         if state.graph_error:

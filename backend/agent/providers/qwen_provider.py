@@ -105,13 +105,6 @@ class QwenResearchProvider:
             error_message="Provider response was not valid SpecialistSelection JSON",
         )
 
-    def generate_local_proposal(self, *, system_prompt: str, user_prompt: str) -> dict[str, Any]:
-        return self._generate_json(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            error_message="Provider response was not valid local proposal JSON",
-        )
-
     def generate_recommendations(self, *, system_prompt: str, user_prompt: str) -> dict[str, Any]:
         self._ensure_configured()
         content = self._chat_completion(

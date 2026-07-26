@@ -183,7 +183,7 @@ const sampleItinerary = [
         title: "周边体验",
         location: "自然 / 古建 / 海边",
         duration: "3 小时",
-        detail: "demo 暂用通用节点，真实版本会由 LLM 和地点数据生成。",
+        detail: "根据当天节奏选择自然、古建或海边体验。",
         tags: ["自然风光", "可替换"],
         booked: false,
         x: 72,
@@ -317,17 +317,7 @@ function renderStudio() {
             </div>
           </div>
           <h2 id="chat-import-title">用聊天把旅行想法导入进来。</h2>
-          <p>不用先填表。用户可以一句话混合目的地、时间、预算、人数、出发地、风格和其它要求；后续真实版本由 LLM 判断信息是否足够，不够再追问。这个 demo 先在信息输入后直接进入 Trip Board。</p>
         </div>
-
-        <aside class="import-notes">
-          <h3>Agent 会尝试理解</h3>
-          <ul>
-            <li>目的地或目的地感觉</li>
-            <li>日期范围、天数、预算、人数、出发地</li>
-            <li>旅行风格和自由要求</li>
-          </ul>
-        </aside>
       </section>
 
       <section class="chat-import-panel">
@@ -342,7 +332,6 @@ function renderStudio() {
         <div class="chat-composer">
           <textarea id="trip-prompt" placeholder="例如：我想8月去杭州3天，两个人，预算3000以内，想吃吃喝喝和citywalk，节奏不要太赶。">${escapeHtml(state.chatImportPrompt)}</textarea>
           <div class="composer-actions">
-            <span>支持模糊表达，demo 暂时直接生成 Trip Board。</span>
             <button class="primary-btn" data-action="submit-chat-import">导入并规划</button>
           </div>
         </div>
@@ -402,7 +391,6 @@ function renderBoard() {
           <div class="panel-title">
             <div>
               <h2>${activeDay.title}</h2>
-              <p class="muted">点击任意节点进行编辑，地图会同步高亮。</p>
             </div>
             <button class="primary-btn" data-action="add-node">新增节点</button>
           </div>
@@ -518,33 +506,32 @@ function renderDrawer(node) {
 function renderNodeWorkbench(node, focus) {
   return `
     <div class="node-workbench ${focus === "edit" ? "focus-edit" : "focus-ai"}">
-      <section class="workbench-editor">
+      <section class="workbench-panel workbench-editor">
         <div class="workbench-title">
           <strong>手动编辑</strong>
-          <span class="muted">字段随时可改，AI 建议也能直接应用到这里。</span>
         </div>
         ${renderManualEditor(node)}
       </section>
 
-      <section class="workbench-ai">
+      <section class="workbench-panel workbench-ai">
         <div class="workbench-title">
           <strong>问 AI</strong>
-          <span class="muted">这些原来的散装操作，现在都变成节点上下文里的快捷提示词。</span>
         </div>
         <div class="ai-prompt-grid">
           ${renderAiPromptButtons(node)}
         </div>
         <div class="ai-box">
-          <strong>AI 对这个节点的理解</strong>
+          <strong>上下文</strong>
           <p class="muted">${nodeInsight(node)}</p>
           <div class="llm-response-space">
-            <p><strong>预留 LLM 回答区</strong></p>
-            <p>这里会显示模型对当前节点的分析、追问、替代方案理由、交通/酒店比较，或者把自由问题拆成可应用的结构化建议。</p>
-            ${renderAiSuggestionCard(node)}
+            <article class="llm-message ai">
+              <span>AI</span>
+              <p>${nodeInsight(node)}</p>
+              ${renderAiSuggestionCard(node)}
+            </article>
           </div>
           <textarea id="ai-question" placeholder="例如：这里能不能换成少走路版本？如果下雨怎么办？"></textarea>
           <div class="prompt-actions">
-            <span class="field-hint">demo 会生成一张建议卡；真实版本会接 LLM、地点数据和交通/酒店 API。</span>
             <button class="primary-btn" data-action="mock-answer">询问</button>
           </div>
         </div>
@@ -597,7 +584,7 @@ function renderManualEditor(node) {
       <label>Tags<input id="edit-tags" value="${escapeAttr((node.tags || []).join("、"))}" placeholder="酒店、出发、citywalk" /></label>
     </div>
     <div class="ai-box" style="margin-top: 12px;">
-      <strong>说明</strong>
+      <strong>备注</strong>
       <textarea id="edit-detail">${escapeHtml(node.detail)}</textarea>
     </div>
     <div class="prompt-actions editor-actions">
@@ -623,7 +610,7 @@ function submitChatImport() {
   state.chatMessages = [
     ...state.chatMessages,
     { role: "user", text: prompt },
-    { role: "agent", text: "收到，我先把这段需求导入成一个可编辑 Trip Board。真实版本会先判断是否需要追问。" },
+    { role: "agent", text: "收到，已导入为一个可编辑 Trip Board。" },
   ];
   state.selectedPlanId = "chat-import-demo";
   state.screen = "board";
@@ -811,7 +798,7 @@ function addNode() {
     title: "新节点",
     location: "待定地点",
     duration: "60 分钟",
-    detail: "点击编辑这个节点，补充地点、时间、说明和 tags。",
+    detail: "待补充地点、时间、备注和 tags。",
     tags: ["新建"],
     booked: false,
     x: 50,

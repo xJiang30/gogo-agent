@@ -3,10 +3,9 @@ from backend.agent.graph import TripPlanningGraph
 from backend.agent.lightweight_flows import LightweightFlows
 from backend.agent.planning_brief_builder import PlanningBriefBuilder
 from backend.agent.contracts.planning import PlanningBrief
-from backend.agent.contracts.replan_routing import ReplanNeed, SpecialistSelection
+from backend.agent.contracts.replan_routing import ReplanNeed, ReplanScope, SpecialistSelection
 from backend.agent.proposal_executor import ProposalExecutor
 from backend.agent.proposal_service import ProposalService
-from backend.agent.providers.errors import LlmProviderError
 from backend.agent.providers.failure_policy import classify_provider_failure
 from backend.agent.replan_escalation_policy import ReplanEscalationPolicy
 from backend.agent.replan_intent_router import ReplanIntentRouter
@@ -82,6 +81,7 @@ class TravelAdvisor:
             "intent": intent,
             "routing": routing,
         }
+        graph_intent = {**intent, "capability_plan": routing["capabilityPlan"]}
 
         if routing["decision"] == "direct_answer":
             try:
@@ -100,24 +100,6 @@ class TravelAdvisor:
                 return answer_response(routing, planning_brief, fallback["message"], fallback=fallback)
 
         proposal_id = f"{routing['decision']}-manual"
-        if routing["decision"] == "local_proposal":
-            if not trip or not intent.get("node_id"):
-                fallback = missing_local_proposal_context_fallback(trip=trip, intent=intent)
-                return answer_response(routing, planning_brief, fallback["message"], fallback=fallback)
-            try:
-                result = self.lightweight_flows.local_proposal({**request, "proposal_id": proposal_id})
-            except LlmProviderError as error:
-                fallback = local_proposal_provider_fallback(error)
-                return answer_response(routing, planning_brief, fallback["message"], fallback=fallback)
-            except ValueError as error:
-                fallback = local_proposal_error_fallback(error)
-                return answer_response(routing, planning_brief, fallback["message"], fallback=fallback)
-            stored = self.proposal_service.persist_proposal(
-                result["proposal"],
-                current_trip_version=trip["version"],
-            )
-            return proposal_response(routing, planning_brief, stored)
-
         if routing["decision"] == "regenerate_recommendations":
             graph_result = self.graph.run_initial_plan(user_message, user_id=user_id, planning_brief=planning_brief)
         elif intent.get("kind") == "initial_plan" or requested_mode == "initial_plan":
@@ -126,7 +108,7 @@ class TravelAdvisor:
             graph_result = self.graph.run_replan(
                 user_message=user_message,
                 trip=trip,
-                intent=intent,
+                intent=graph_intent,
                 user_id=user_id,
                 proposal_id=proposal_id,
             )
@@ -172,13 +154,15 @@ class TravelAdvisor:
             trip=trip,
             node_id=intent.get("node_id") or first_or_none(decision.affected_node_ids),
         )
+        capability_plan = specialist_selection.model_dump(mode="json")
         return {
             "decision": decision.decision,
             "reasons": decision.reasons,
             "affected_day_ids": decision.affected_day_ids,
             "affected_node_ids": decision.affected_node_ids,
             "replan": decision.model_dump(mode="json"),
-            "specialistSelection": specialist_selection.model_dump(mode="json"),
+            "specialistSelection": capability_plan,
+            "capabilityPlan": capability_plan,
         }
 
 
@@ -198,8 +182,6 @@ def response_planning_brief(*, user_message: str, intent: dict, routing: dict, b
         return builder.build_initial_planning_brief(user_message)
     if routing["decision"] == "regenerate_recommendations":
         return PlanningBrief(mode="regenerate_recommendations", origin_message=user_message)
-    if routing["decision"] == "local_proposal":
-        return PlanningBrief(mode="local_proposal", origin_message=user_message)
     if routing["decision"] == "graph_replan":
         return PlanningBrief(
             mode=routing.get("replan", {}).get("scope", "cross_day_replan"),
@@ -211,43 +193,67 @@ def response_planning_brief(*, user_message: str, intent: dict, routing: dict, b
 
 
 def enforce_trip_board_edit_policy(decision, *, intent: dict):
-    explicit_edit = normalize_intent_kind(intent.get("kind")) == "replan"
-    requested_mode = intent.get("mode") or intent.get("action")
-    if requested_mode in {"replan", "day_replan", "cross_day_replan", "full_replan", "regenerate_recommendations"}:
-        explicit_edit = True
-    if decision.decision == "local_proposal" and not explicit_edit:
-        decision.scope = "lightweight_research"
-        decision.decision = "lightweight_research"
-        decision.output_kind = "answer"
-        decision.reasons = [
-            *decision.reasons,
-            "Trip Board free text is consultative; only explicit replan actions can mutate the trip",
-        ]
+    allowed_decisions = {"direct_answer", "lightweight_research", "graph_replan", "regenerate_recommendations"}
+    if decision.decision not in allowed_decisions:
+        if is_explicit_replan_intent(intent):
+            decision.scope = ReplanScope.CROSS_DAY_REPLAN if len(intent.get("affected_day_ids", [])) >= 2 else ReplanScope.DAY_REPLAN
+            decision.decision = "graph_replan"
+            decision.output_kind = "proposal"
+            decision.reasons = [
+                *decision.reasons,
+                "Unknown or deprecated runtime decision was normalized to explicit graph replan",
+            ]
+        else:
+            decision.scope = "lightweight_research"
+            decision.decision = "lightweight_research"
+            decision.output_kind = "answer"
+            decision.reasons = [
+                *decision.reasons,
+                "Unknown or deprecated runtime decision was normalized to lightweight consultation",
+            ]
     return decision
+
+
+def is_explicit_replan_intent(intent: dict) -> bool:
+    requested_mode = intent.get("mode") or intent.get("action")
+    if requested_mode in {"replan", "day_replan", "cross_day_replan", "full_replan", "all_replan"}:
+        return True
+    return intent.get("can_close_locally") is False and bool(intent.get("affected_day_ids") or intent.get("node_id") or intent.get("affected_node_ids"))
 
 
 def add_default_node_specialist(selection: SpecialistSelection, *, trip: dict | None, node_id: str | None) -> SpecialistSelection:
     node = find_trip_node(trip, node_id) if trip and node_id else None
     need = default_need_for_node(node)
-    if not need or need in selection.needs:
+    if not need or need in selection.required:
         return selection
     return SpecialistSelection(
-        needs=[*selection.needs, need],
+        required=[*selection.required, need],
+        optional=selection.optional,
+        needs=selection.needs,
         reasons=[*selection.reasons, f"Target node type defaults to {need.value} specialist"],
+        execution_mode=selection.execution_mode,
     )
 
 
 def default_need_for_node(node: dict | None) -> ReplanNeed | None:
     if not node:
         return None
-    node_type = str(node.get("type", "")).lower()
-    if node_type in {"hotel", "stay", "lodging", "accommodation"}:
+    labels = node_capability_labels(node)
+    if labels & {"hotel", "stay", "lodging", "accommodation", "住宿", "酒店", "民宿"}:
         return ReplanNeed.STAY
-    if node_type in {"transport", "mobility", "transfer", "route", "flight", "rail"}:
+    if labels & {"transport", "mobility", "transfer", "route", "flight", "rail", "traffic", "交通", "路线", "打车", "地铁", "公交"}:
         return ReplanNeed.MOBILITY
-    if node_type in {"food", "meal", "restaurant", "activity", "attraction", "experience"}:
+    if labels & {"food", "meal", "restaurant", "activity", "attraction", "experience", "place", "景点", "餐厅", "美食", "体验"}:
         return ReplanNeed.EXPERIENCE
     return None
+
+
+def node_capability_labels(node: dict) -> set[str]:
+    labels = {str(node.get("type", "")).lower()}
+    tags = node.get("tags", [])
+    if isinstance(tags, list):
+        labels.update(str(tag).lower() for tag in tags)
+    return labels
 
 
 def find_trip_node(trip: dict | None, node_id: str | None) -> dict | None:
@@ -328,45 +334,6 @@ def decide_advisor_fallback(*, intent: dict, graph_error: dict) -> dict:
         "source": "graph",
         "retryable": False,
         "graph_error": graph_error,
-    }
-
-
-def missing_local_proposal_context_fallback(*, trip: dict | None, intent: dict) -> dict:
-    missing = []
-    if not trip:
-        missing.append("trip")
-    if not intent.get("node_id"):
-        missing.append("node_id")
-    return {
-        "layer": "advisor",
-        "decision": "missing_trip_for_local_proposal" if "trip" in missing else "missing_node_for_local_proposal",
-        "message": "这次替换需要当前行程和节点信息。请先选择一个行程节点，再让我生成替换提案。",
-        "source": "advisor",
-        "retryable": False,
-        "missing": missing,
-    }
-
-
-def local_proposal_error_fallback(error: ValueError) -> dict:
-    return {
-        "layer": "advisor",
-        "decision": "local_proposal_node_not_found",
-        "message": "我没有在当前行程里找到这个节点。请重新选择要替换的节点。",
-        "source": "advisor",
-        "retryable": False,
-        "error": str(error),
-    }
-
-
-def local_proposal_provider_fallback(error: LlmProviderError) -> dict:
-    return {
-        "layer": "advisor",
-        "decision": "local_proposal_provider_failed",
-        "message": "这次替换提案没有生成成功。请重新试一次，或补充你想替换成什么类型。",
-        "source": "lightweight",
-        "retryable": error.retryable,
-        "error_code": error.code,
-        "reason": str(error),
     }
 
 

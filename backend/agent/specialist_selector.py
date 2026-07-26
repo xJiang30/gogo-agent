@@ -36,10 +36,10 @@ def fallback_specialist_selection(*, user_message: str, intent: dict) -> Special
     add_if_mentions(needs, reasons, text, ReplanNeed.FLIGHT, ["机票", "航班", "飞机", "flight"], "Flight timing or price may affect mobility")
     add_if_mentions(needs, reasons, text, ReplanNeed.RAIL, ["高铁", "火车", "新干线", "rail", "train"], "Rail timing may affect mobility")
     add_if_mentions(needs, reasons, text, ReplanNeed.STAY, ["住宿", "酒店", "民宿", "hotel"], "Stay constraints may affect the plan")
-    add_if_mentions(needs, reasons, text, ReplanNeed.MOBILITY, ["交通", "路线", "打车", "地铁", "公交", "换乘"], "Mobility constraints may affect the plan")
-    add_if_mentions(needs, reasons, text, ReplanNeed.EXPERIENCE, ["景点", "餐厅", "美食", "体验", "吃"], "Experience quality may affect the plan")
+    add_if_mentions(needs, reasons, text, ReplanNeed.MOBILITY, ["交通", "路线", "打车", "地铁", "公交", "换乘", "taxi", "route", "transport", "subway", "bus"], "Mobility constraints may affect the plan")
+    add_if_mentions(needs, reasons, text, ReplanNeed.EXPERIENCE, ["景点", "餐厅", "美食", "体验", "吃", "restaurant", "food", "attraction", "experience"], "Experience quality may affect the plan")
 
-    return SpecialistSelection(needs=needs, reasons=reasons)
+    return SpecialistSelection(optional=needs, reasons=reasons)
 
 
 def add_if_mentions(
@@ -60,9 +60,10 @@ def add_if_mentions(
 def specialist_selector_system_prompt() -> str:
     return (
         "You select travel specialist capabilities needed for the user's turn. Return JSON only matching "
-        "SpecialistSelection: {needs: string[], reasons: string[]}. "
+        "SpecialistSelection: {optional: string[], reasons: string[], execution_mode: string}. "
         "Allowed needs: stay, mobility, experience, weather, ticket, flight, rail, price. "
-        "Return an empty needs list if no specialist/API-backed check is needed."
+        "Return optional capabilities from the user message only; required node/tag capabilities are added by TravelAdvisor. "
+        "Use execution_mode lightweight unless the caller explicitly asks for graph-level replan."
     )
 
 

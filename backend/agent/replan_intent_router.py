@@ -52,6 +52,13 @@ def fallback_replan_routing_decision(*, user_message: str, trip: dict | None, in
             reasons=["User requested a new recommendation set before committing to a trip"],
         )
 
+    if is_explicit_replan_request(intent=intent, requested_mode=requested_mode):
+        return graph_replan_decision(
+            trip=trip,
+            affected_day_ids=affected_day_ids,
+            affected_node_ids=affected_node_ids,
+        )
+
     if kind == "replace":
         return ReplanRoutingDecision(
             scope=ReplanScope.LIGHTWEIGHT_RESEARCH,
@@ -73,29 +80,10 @@ def fallback_replan_routing_decision(*, user_message: str, trip: dict | None, in
         )
 
     if kind == "replan":
-        if not trip:
-            return ReplanRoutingDecision(
-                scope=ReplanScope.REGENERATE_RECOMMENDATIONS,
-                decision=EscalationDecision.REGENERATE_RECOMMENDATIONS.value,
-                output_kind="recommendation_set",
-                affected_day_ids=affected_day_ids,
-                affected_node_ids=affected_node_ids,
-                reasons=["No committed trip exists, so replan means regenerating recommendations"],
-            )
-
-        if len(affected_day_ids) >= 2:
-            scope = ReplanScope.CROSS_DAY_REPLAN
-            reason = "Touches multiple committed trip days"
-        else:
-            scope = ReplanScope.DAY_REPLAN
-            reason = "Touches one committed trip day"
-        return ReplanRoutingDecision(
-            scope=scope,
-            decision=EscalationDecision.GRAPH_REPLAN.value,
-            output_kind="proposal",
+        return graph_replan_decision(
+            trip=trip,
             affected_day_ids=affected_day_ids,
             affected_node_ids=affected_node_ids,
-            reasons=[reason],
         )
 
     return ReplanRoutingDecision(
@@ -126,16 +114,49 @@ def get_affected_node_ids(intent: dict) -> list[str]:
     return []
 
 
+def is_explicit_replan_request(*, intent: dict, requested_mode: str | None) -> bool:
+    if requested_mode in {"replan", "day_replan", "cross_day_replan", "full_replan", "all_replan"}:
+        return True
+    return intent.get("can_close_locally") is False and bool(intent.get("affected_day_ids") or intent.get("node_id") or intent.get("affected_node_ids"))
+
+
+def graph_replan_decision(*, trip: dict | None, affected_day_ids: list[str], affected_node_ids: list[str]) -> ReplanRoutingDecision:
+    if not trip:
+        return ReplanRoutingDecision(
+            scope=ReplanScope.REGENERATE_RECOMMENDATIONS,
+            decision=EscalationDecision.REGENERATE_RECOMMENDATIONS.value,
+            output_kind="recommendation_set",
+            affected_day_ids=affected_day_ids,
+            affected_node_ids=affected_node_ids,
+            reasons=["No committed trip exists, so replan means regenerating recommendations"],
+        )
+
+    if len(affected_day_ids) >= 2:
+        scope = ReplanScope.CROSS_DAY_REPLAN
+        reason = "Touches multiple committed trip days"
+    else:
+        scope = ReplanScope.DAY_REPLAN
+        reason = "Touches one committed trip day"
+    return ReplanRoutingDecision(
+        scope=scope,
+        decision=EscalationDecision.GRAPH_REPLAN.value,
+        output_kind="proposal",
+        affected_day_ids=affected_day_ids,
+        affected_node_ids=affected_node_ids,
+        reasons=[reason],
+    )
+
+
 def replan_router_system_prompt() -> str:
     return (
         "You classify a travel advisor user turn. Return JSON only matching ReplanRoutingDecision: "
         "{scope, decision, output_kind, affected_day_ids, affected_node_ids, reasons}. "
-        "Use scope values: initial_plan, discussion_turn, local_node_proposal, day_replan, "
+        "Use scope values: initial_plan, discussion_turn, day_replan, "
         "cross_day_replan, regenerate_recommendations, lightweight_research. "
-        "Use decision values: direct_answer, lightweight_research, local_proposal, graph_replan, regenerate_recommendations. "
+        "Use decision values: direct_answer, lightweight_research, graph_replan, regenerate_recommendations. "
         "Important product rule: after a Trip Board exists, free-text ask/replace/check/compare turns are consultative "
         "and should use lightweight_research or direct_answer. Only explicit day, cross-day, or full-trip replan/edit "
-        "actions should use graph_replan and output a proposal. Do not choose local_proposal for normal free text. "
+        "actions should use graph_replan and output a proposal. "
         "If the user has not committed to a trip and asks for a different set of plans, choose regenerate_recommendations."
     )
 

@@ -1,12 +1,11 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ReplanScope(StrEnum):
     INITIAL_PLAN = "initial_plan"
     DISCUSSION_TURN = "discussion_turn"
-    LOCAL_NODE_PROPOSAL = "local_node_proposal"
     DAY_REPLAN = "day_replan"
     CROSS_DAY_REPLAN = "cross_day_replan"
     REGENERATE_RECOMMENDATIONS = "regenerate_recommendations"
@@ -35,4 +34,23 @@ class ReplanRoutingDecision(BaseModel):
 
 class SpecialistSelection(BaseModel):
     needs: list[ReplanNeed] = Field(default_factory=list)
+    required: list[ReplanNeed] = Field(default_factory=list)
+    optional: list[ReplanNeed] = Field(default_factory=list)
     reasons: list[str] = Field(default_factory=list)
+    execution_mode: str = "lightweight"
+
+    @model_validator(mode="after")
+    def sync_needs_union(self):
+        if self.needs and not self.required and not self.optional:
+            self.optional = unique_needs(self.needs)
+        merged = unique_needs([*self.required, *self.optional, *self.needs])
+        self.needs = merged
+        return self
+
+
+def unique_needs(needs: list[ReplanNeed]) -> list[ReplanNeed]:
+    unique: list[ReplanNeed] = []
+    for need in needs:
+        if need not in unique:
+            unique.append(need)
+    return unique

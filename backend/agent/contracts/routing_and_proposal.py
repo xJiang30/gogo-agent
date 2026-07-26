@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class EscalationDecision(StrEnum):
     DIRECT_ANSWER = "direct_answer"
     LIGHTWEIGHT_RESEARCH = "lightweight_research"
-    LOCAL_PROPOSAL = "local_proposal"
     GRAPH_REPLAN = "graph_replan"
     REGENERATE_RECOMMENDATIONS = "regenerate_recommendations"
 

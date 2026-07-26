@@ -81,6 +81,8 @@ Chat import now returns one TripBoardResponse. TripPlanningGraph can still keep 
 
 This means the first user-facing result is already an editable Trip Board. The internal RecommendationSet is kept as graph/planner evidence and debug context, not as a screen where users must choose among three plans.
 
+CurrentTrip Board is the source of truth. Agent 不保存“自己以为的行程状态”，也不依赖上一轮聊天里未写入 Board 的内容。每次请求都读取当前 Board 的 `trip.version`、`days`、`nodes`、当前选中的 day/node 和用户这次输入。用户手动保存、点击应用到节点、或接受 graph proposal 后，Board 内容才变化，`trip.version` 才递增。
+
 ## 3.1 LLM / Rules / Fallback Matrix
 
 This table explains which modules call the model, which modules are deterministic, and what happens when they fail.
@@ -90,7 +92,7 @@ This table explains which modules call the model, which modules are deterministi
 | `TravelAdvisor` | Main agent and orchestration layer | Converts graph/lightweight failures into `AdvisorFallbackDecision`; enforces that free-text consultation cannot mutate trip | `TripBoardResponse`, `AnswerResponse`, `ProposalResponse`, or `ClarificationQuestionResponse` |
 | `ClarificationPolicy` | LLM-first: `generate_clarification_decision` | For initial chat import, asks destination/duration when the request is too vague; provider/schema failure uses safe required questions | `ClarificationQuestionResponse` or continue |
 | `ReplanIntentRouter` | LLM-first: `generate_replan_routing_decision` | Rule fallback maps initial plan/regenerate/replace/research/replan into stable routing decisions | `ReplanRoutingDecision` |
-| `SpecialistSelector` | LLM-first: `generate_specialist_selection` | Keyword fallback detects weather, ticket, price, stay, mobility, experience, flight, and rail needs | `SpecialistSelection` |
+| `SpecialistSelector` | LLM-first: `generate_specialist_selection` | Keyword fallback detects optional weather, ticket, price, stay, mobility, experience, flight, and rail needs; node type/tag adds required minimum capabilities | `CapabilityPlan` / `SpecialistSelection` |
 | `PlanningBriefBuilder` | LLM-first: `generate_planning_brief` | Safe fallback keeps the original user message without guessing destination/days/interests | `PlanningBrief` |
 | `TripPlanningGraph` | LangGraph workflow with stay/mobility/experience research | Graph errors are surfaced as `GraphErrorEnvelope` and then advisor fallback | internal `RecommendationSet` or `TripProposal` |
 | `TripBoardBuilder` | Deterministic adapter | Uses the best internal recommendation candidate; creates a minimal fallback board only when no candidate exists | `TripBoardResponse(kind="trip_board")` |
@@ -161,7 +163,7 @@ kind = clarification_question
 | --- | --- | --- |
 | 初始界面规划新旅程 | LLM 判断是否足够开始规划；fallback 追问目的地和天数 | 增加 `initial_trip_planning` profile：目的地、日期/天数必填；预算、人数、节奏、兴趣作为高价值可选信息 |
 | 普通咨询 | 不走初始规划追问，直接进入 lightweight answer | 增加 `quick_consultation` profile：默认不要求旅行完整信息，只在问题缺对象时追问 |
-| 单点替换 local proposal | 不走初始规划追问；由 local proposal 检查 trip 和 node | 增加 `local_proposal` profile：缺目标节点时追问“你想换哪一个酒店/景点/餐厅/交通块” |
+| 单点咨询/一键填入 | 不走初始规划追问；进入 lightweight research，结合当前 node 和 specialistSelection 生成可参考内容 | 增加 `node_consultation` profile：缺目标节点时追问“你想咨询或填入哪一个酒店/景点/餐厅/交通块” |
 | 单日/跨天重排 | 不走初始规划追问；graph replan 要求明确 affected nodes | 增加 `day_or_cross_day_replan` profile：缺天数、节点或修改目标时追问 |
 | 换一组推荐 | 由 router 识别为 `regenerate_recommendations` | 如果缺上一轮 brief 或用户没说不满意点，可追问“想换风格、预算、节奏还是目的地” |
 
@@ -178,9 +180,21 @@ regenerate_recommendations
 lightweight_research
 ```
 
-它解决的是“这次应该输出什么”：从零规划会先经过 graph 内部候选，再由 `TripBoardBuilder` 输出一个 `TripBoardResponse`；已有行程上的单点/单日/跨天修改输出 `TripProposal`；普通追问输出 `answer`。`recommendation_set` 现在主要是内部候选结构，不是初始规划给用户看的主输出。
+它解决的是“这次应该输出什么”：从零规划会先经过 graph 内部候选，再由 `TripBoardBuilder` 输出一个 `TripBoardResponse`；已有行程上的普通追问、单点咨询、换酒店/换餐厅自由文本都输出 `answer`；只有单日、跨天、全局重排这类明确结构调整才输出 `TripProposal`。`recommendation_set` 现在主要是内部候选结构，不是初始规划给用户看的主输出。
 
-`specialist_selector.py` 是专业能力选择器。它判断这次是否需要：
+`specialist_selector.py` 是专业能力选择器。它现在输出的是一个 capability plan，而不是简单的 needs list。
+
+这个 plan 分三层：
+
+```text
+required = node type / tag 强制要求的最低能力
+optional = LLM 或 fallback 根据用户输入额外选择的能力
+needs = required + optional 的去重合集，兼容旧前端/旧测试
+```
+
+例如用户在交通节点问酒店，交通节点会强制带 `mobility`，用户问题会额外加入 `stay`。用户在酒店节点问下雨和打车，酒店节点强制带 `stay`，用户问题额外加入 `weather` 和 `mobility`。
+
+当前可选能力包括：
 
 ```text
 stay
@@ -193,7 +207,7 @@ rail
 price
 ```
 
-注意：这些 specialist needs 不是单独 graph node。API 仍然作为住宿、交通、体验等 specialist 内部可调用的工具，等真实 API key 到位后再接。
+注意：这些 specialist needs 不是单独 graph node。API 仍然作为住宿、交通、体验等 specialist 内部可调用的工具，等真实 API key 到位后再接。后续增加更多子 agent 或 skill 时，优先加入 capability plan，而不是把判断写死在 LightweightFlow 或 Graph 里。
 
 `replan_escalation_policy.py` 是之前的升级规则文件，目前保留兼容，但新的主入口已经改为由 `TravelAdvisor` 消费 `ReplanIntentRouter` 和 `SpecialistSelector` 的结构化结果。
 
@@ -310,7 +324,7 @@ END
 - `research.py`：research 输入/输出 contract，包括 `ResearchBrief`、`ResearchOption`、`ResearchResult`。
 - `research_outcome.py`：research 步骤结果包装，包括 `ResearchOutcome`。
 - `recommendation_output.py`：最终推荐方案 contract，包括 `TripIntent`、`StayPlan`、`DayTripPlan`、`MobilityPlan`、`FoodPlan`、`DayBlock`、`DayPlan`、`TravelPlanRecommendation`、`RecommendationSet`。
-- `replan_routing.py`：replan 路由 contract，包括 `ReplanScope`、`ReplanNeed`、`ReplanRoutingDecision`、`SpecialistSelection`。
+- `replan_routing.py`：replan 路由和能力选择 contract，包括 `ReplanScope`、`ReplanNeed`、`ReplanRoutingDecision`、`SpecialistSelection`。`SpecialistSelection` 同时承担 `CapabilityPlan` 的作用，字段包括 `required`、`optional`、`needs`、`reasons`、`execution_mode`。
 - `routing_and_proposal.py`：路由和 proposal contract，包括 `EscalationDecision`、`ProposalOperation`、`ProposalImpact`、`ProposalEvidence`、`TripProposal`。
 - `errors.py`：错误和 fallback contract，包括 `GraphErrorEnvelope`、`AdvisorFallbackDecision`。
 - `run_events.py`：运行事件 contract，包括 `RunMetadata`、`AgentRunAccepted`、`RunEvent`。
@@ -333,7 +347,7 @@ LLM_MODEL_NAME
 LLM_TIMEOUT_MS
 ```
 
-它提供这些主要方法：`generate_clarification_decision(...)`、`generate_replan_routing_decision(...)`、`generate_specialist_selection(...)`、`generate_planning_brief(...)`、`generate_research(...)`、`generate_recommendations(...)`、`generate_replan_proposal(...)`、`generate_local_proposal(...)` 和 `generate_answer(...)`。除 `generate_answer` 返回普通文本外，其它模型方法都要求返回 JSON，并经过 schema 校验。它还提供 `get_weather_context(...)`，通过 Open-Meteo 获取天气上下文，先给 experience 子系统使用。
+它提供这些主要方法：`generate_clarification_decision(...)`、`generate_replan_routing_decision(...)`、`generate_specialist_selection(...)`、`generate_planning_brief(...)`、`generate_research(...)`、`generate_recommendations(...)`、`generate_replan_proposal(...)` 和 `generate_answer(...)`。除 `generate_answer` 返回普通文本外，其它模型方法都要求返回 JSON，并经过 schema 校验。它还提供 `get_weather_context(...)`，通过 Open-Meteo 获取天气上下文，先给 experience 子系统使用。
 
 `errors.py` 定义 `LlmProviderError`，用于包装配置错误、HTTP 错误、网络错误、超时、响应解析错误。
 

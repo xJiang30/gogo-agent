@@ -672,19 +672,59 @@ button:hover {
 
 .llm-response-space {
   display: grid;
-  gap: 12px;
-  min-height: 260px;
+  gap: 14px;
+  align-content: start;
+  min-height: 320px;
+  max-height: 420px;
+  overflow: auto;
   margin-top: 12px;
   padding: 14px;
-  border: 1px dashed rgba(36, 90, 126, 0.28);
+  border: 1px solid rgba(36, 90, 126, 0.16);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
+  background: #fff;
 }
 
 .llm-response-space > p {
   margin: 0;
   color: #52606a;
   line-height: 1.65;
+}
+
+.llm-message {
+  max-width: 88%;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf6;
+}
+
+.llm-message.ai {
+  justify-self: start;
+}
+
+.llm-message.user {
+  justify-self: end;
+  background: var(--green-soft);
+  border-color: rgba(45, 106, 79, 0.24);
+}
+
+.llm-message.ghost {
+  opacity: 0.62;
+}
+
+.llm-message span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.llm-message p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.62;
 }
 
 .option-list {
@@ -744,9 +784,18 @@ button:hover {
   min-width: 0;
 }
 
+.workbench-panel {
+  align-self: stretch;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf6;
+}
+
 .workbench-title {
   display: grid;
   gap: 4px;
+  min-height: 24px;
 }
 
 .workbench-title strong {
@@ -766,20 +815,36 @@ button:hover {
 }
 
 .ai-suggestion-card {
-  padding: 14px;
+  width: min(320px, 100%);
+  margin-top: 10px;
+  padding: 10px;
   border: 1px solid rgba(45, 106, 79, 0.24);
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 10px 24px rgba(38, 34, 25, 0.08);
+  box-shadow: none;
 }
 
 .ai-suggestion-card h3 {
-  margin: 8px 0 6px;
-  font-size: 18px;
+  margin: 6px 0 4px;
+  font-size: 15px;
 }
 
 .ai-suggestion-card p {
-  margin: 8px 0;
+  margin: 6px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-suggestion-card .prompt-actions {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ai-suggestion-card .primary-btn,
+.ai-suggestion-card .ghost-btn {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .focus-ai .workbench-ai,
