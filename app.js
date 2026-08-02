@@ -1,4 +1,4 @@
-const STORAGE_KEY = "gogo-agent-flow-mvp";
+const STORAGE_KEY = "gogo-agent-product-demo-v3";
 const browserConfig = window.__GOGO_ENV__ || {};
 const runtimeConfig = {
   openAIApiKey: browserConfig.openAIApiKey || "",
@@ -266,15 +266,18 @@ function loadState() {
   return {
     screen: "studio",
     prompt: defaultPrompt,
-    generated: false,
+    intakeReady: false,
     selectedPlanId: null,
     activeDayId: "day-1",
     activeNodeId: null,
-    drawerMode: "ask",
+    drawerMode: "assist",
+    assistantCollapsed: true,
+    pendingProposal: null,
+    draftNotice: "",
     chat: [
       {
         role: "agent",
-        text: "告诉我你大概想去哪、几天、预算和不想要什么。信息不完整也没关系，我会先给你 3 个可编辑计划。",
+        text: "先随便说说你想去哪、几天、预算、同行人和偏好。我整理够关键信息后，就可以开始生成 Trip Board。",
       },
     ],
     itinerary: structuredClone(itinerary),
@@ -292,44 +295,68 @@ function render() {
 
 function renderStudio() {
   return `
-    <main class="studio">
-      <section class="chat-hero">
+    <main class="studio-shell">
+      <header class="home-nav">
         <div class="brand-row">
           <div class="brand-mark">G</div>
           <div>
             <h1>Gogo Agent</h1>
-            <p>New travel plan</p>
+            <p>AI travel planning workspace</p>
           </div>
         </div>
-        <h2>从一句模糊想法开始，生成可编辑旅行计划。</h2>
-        <p>先对话，不先填表。Agent 会把不完整的信息整理成几个可选计划；选中之后再进入 Trip Board 看时间线、地图、交通和酒店。</p>
-        <div class="prompt-panel">
-          <textarea id="trip-prompt" aria-label="旅行想法">${escapeHtml(state.prompt)}</textarea>
-          <div class="prompt-actions">
-            <div class="chips">
-              <button class="chip" data-action="preset" data-value="亲子 7 天，少走路，预算 15000">亲子少走路</button>
-              <button class="chip" data-action="preset" data-value="冰岛 8 天，自驾，看极光，预算别太夸张">冰岛极光</button>
-              <button class="chip" data-action="preset" data-value="首尔 4 天，购物美食，住得方便">首尔周末</button>
-            </div>
-            <button class="primary-btn" data-action="generate-plans">生成 3 个计划</button>
-          </div>
-        </div>
-      </section>
+      </header>
 
-      <section class="chat-thread">
-        ${state.chat.map(renderMessage).join("")}
-        ${state.generated ? renderPlanPanel() : ""}
+      <section class="intake-panel">
+        <p class="eyebrow">Plan from a conversation</p>
+        <h2>说出你的旅行想法。</h2>
+        <p class="lede">我会提取目的地、时间、预算、同行人和偏好；信息够了，就直接生成可编辑的 Trip Board。</p>
+        ${state.intakeReady ? renderTripBrief() : ""}
+        ${renderIntakeComposer()}
       </section>
     </main>
   `;
 }
 
-function renderMessage(message) {
+function renderTripBrief() {
+  const items = [
+    ["目的地", "日本 / 九州"],
+    ["时间", "9 月 · 5-6 天"],
+    ["同行", "2 人"],
+    ["预算", "¥8,000-10,000"],
+    ["偏好", "温泉、美食、自然，不赶"],
+  ];
   return `
-    <article class="message ${message.role}">
-      <span class="message-meta">${message.role === "user" ? "You" : "Agent"}</span>
-      <div>${escapeHtml(message.text)}</div>
-    </article>
+    <div class="trip-brief">
+      ${items
+        .map(
+          ([label, value]) => `
+        <div class="field-row">
+          <span>${label}</span>
+          <strong>${state.intakeReady ? value : "待确认"}</strong>
+        </div>
+      `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderIntakeComposer() {
+  return `
+    <div class="intake-composer">
+      <textarea id="trip-prompt" aria-label="旅行想法">${escapeHtml(state.prompt)}</textarea>
+      <div class="prompt-actions">
+        <div class="chips">
+          <button class="chip" data-action="preset" data-value="亲子 7 天，少走路，预算 15000">亲子少走路</button>
+          <button class="chip" data-action="preset" data-value="冰岛 8 天，自驾，看极光，预算别太夸张">冰岛极光</button>
+          <button class="chip" data-action="preset" data-value="首尔 4 天，购物美食，住得方便">首尔周末</button>
+        </div>
+        <div class="composer-actions">
+          ${state.intakeReady ? `<button class="primary-btn" data-action="start-plan">Start Plan</button>` : ""}
+          <button class="ghost-btn" data-action="send-intake">${state.intakeReady ? "更新信息" : "整理信息"}</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -338,8 +365,8 @@ function renderPlanPanel() {
     <div class="plan-panel">
       <div class="panel-title">
         <div>
-          <h2>推荐计划</h2>
-          <p class="muted">一次只给 3 个方向。每个都可以进入 Trip Board 后继续编辑。</p>
+          <h2>选择一个方向</h2>
+          <p class="muted">不用一次选对，进入 Trip Board 后可以继续改。</p>
         </div>
         <button class="ghost-btn" data-action="regenerate-plans">换一批</button>
       </div>
@@ -352,6 +379,7 @@ function renderPlanPanel() {
 
 function renderPlanCard(plan) {
   const selected = state.selectedPlanId === plan.id;
+  const decision = planDecision(plan);
   return `
     <article class="plan-card ${selected ? "selected" : ""}">
       <div class="plan-top">
@@ -359,9 +387,10 @@ function renderPlanCard(plan) {
           <span class="tag">${plan.style}</span>
           <h3>${plan.title}</h3>
         </div>
-        <button class="primary-btn" data-action="enter-board" data-plan-id="${plan.id}">进入 Trip Board</button>
+        <button class="primary-btn" data-action="enter-board" data-plan-id="${plan.id}">选这个</button>
       </div>
-      <p class="muted">${plan.summary}</p>
+      <p class="choice-line"><strong>最适合：</strong>${decision.bestFor}</p>
+      <p class="muted"><strong>注意：</strong>${decision.watch}</p>
       <div class="plan-meta">
         <div><span>天数</span><strong>${plan.days}</strong></div>
         <div><span>预算</span><strong>${plan.budget}</strong></div>
@@ -378,21 +407,23 @@ function renderBoard() {
   const plan = plans.find((item) => item.id === state.selectedPlanId) || plans[0];
   const activeDay = getActiveDay();
   const activeNode = getActiveNode();
+  const assistantOpen = activeNode && !state.assistantCollapsed;
 
   return `
-    <main class="board-shell">
+    <main class="board-shell ${assistantOpen ? "assistant-open" : "assistant-closed"}">
       <section class="timeline-panel">
         <header class="board-header">
           <div class="board-title">
-            <button class="ghost-btn" data-action="back-studio">← 新对话</button>
+            <button class="ghost-btn" data-action="back-studio">新对话</button>
             <h1>${plan.title}</h1>
             <p class="muted">${plan.summary}</p>
           </div>
           <div class="board-actions">
-            <button class="ghost-btn" data-action="ask-overall">问 AI 优化整体路线</button>
-            <button class="primary-btn" data-action="confirm-plan">确认当前计划</button>
+            <button class="ghost-btn" data-action="ask-overall">让 AI 看看哪里可优化</button>
+            <button class="primary-btn" data-action="confirm-plan">保存为行程草稿</button>
           </div>
         </header>
+        ${state.draftNotice ? `<div class="draft-notice">${state.draftNotice}</div>` : ""}
 
         <nav class="day-tabs" aria-label="Days">
           ${state.itinerary
@@ -410,7 +441,7 @@ function renderBoard() {
           <div class="panel-title">
             <div>
               <h2>${activeDay.title}</h2>
-              <p class="muted">点击任意节点进行编辑，地图会同步高亮。</p>
+              <p class="muted">${daySummary(activeDay)}</p>
             </div>
           </div>
           ${activeDay.nodes.map(renderTimeNode).join("")}
@@ -420,16 +451,15 @@ function renderBoard() {
       <section class="map-panel">
         <header class="map-header">
           <div>
-            <h2>实时路线图</h2>
-            <p class="muted">${activeDay.label} · ${activeDay.title}</p>
+            <h2>路线感</h2>
+            <p class="muted">${activeDay.label} · ${activeDay.title} · ${daySummary(activeDay)}</p>
           </div>
-          <button class="ghost-btn" data-action="open-navigation">打开导航</button>
+          <button class="ghost-btn" data-action="open-navigation">导航</button>
         </header>
         ${renderMap(activeDay)}
-        ${renderContextPanel(activeDay)}
       </section>
+      ${renderAssistantDrawer(activeNode)}
     </main>
-    ${renderDrawer(activeNode)}
   `;
 }
 
@@ -438,7 +468,7 @@ function renderTimeNode(node) {
   return `
     <article class="time-node">
       <div class="time-label">${node.time}</div>
-      <div class="node-card ${node.type} ${active ? "active" : ""}" data-action="open-node" data-node-id="${node.id}">
+      <div class="node-card ${node.type} ${active ? "active" : ""}" data-action="open-node" data-node-id="${node.id}" role="button" tabindex="0">
         <div class="node-top">
           <div>
             <span class="tag">${nodeLabel(node.type)}</span>
@@ -452,10 +482,7 @@ function renderTimeNode(node) {
           <span>${node.detail}</span>
         </div>
         <div class="node-actions">
-          <button class="node-action" data-action="edit-node" data-node-id="${node.id}">编辑</button>
-          <button class="node-action" data-action="ask-node" data-node-id="${node.id}">问 AI</button>
-          ${node.type === "transport" ? `<button class="node-action" data-action="transport-node" data-node-id="${node.id}">比较交通</button>` : ""}
-          ${node.type === "hotel" ? `<button class="node-action" data-action="booking-node" data-node-id="${node.id}">预订详情</button>` : ""}
+          <span class="node-action-hint">点击查看</span>
         </div>
       </div>
     </article>
@@ -483,41 +510,44 @@ function renderMap(day) {
   `;
 }
 
-function renderContextPanel(day) {
-  const transports = day.nodes.filter((node) => node.type === "transport").length;
-  const hotels = day.nodes.filter((node) => node.type === "hotel").length;
-  const pending = day.nodes.filter((node) => !node.booked).length;
-  return `
-    <div class="context-panel">
-      <h3>当天概览</h3>
-      <div class="stat-row"><span class="muted">地点/活动</span><strong>${day.nodes.filter((node) => node.type === "place" || node.type === "meal").length}</strong></div>
-      <div class="stat-row"><span class="muted">交通段</span><strong>${transports}</strong></div>
-      <div class="stat-row"><span class="muted">酒店</span><strong>${hotels || "无"}</strong></div>
-      <div class="stat-row"><span class="muted">待确认</span><strong>${pending}</strong></div>
-    </div>
-  `;
-}
-
-function renderDrawer(node) {
-  if (!node) return `<aside class="drawer hidden"></aside>`;
+function renderAssistantDrawer(node) {
+  if (state.assistantCollapsed) {
+    return `
+      <aside class="assistant-drawer collapsed">
+        <button class="assistant-rail" data-action="expand-assistant" aria-label="展开 AI 面板">
+          <span>AI</span>
+          <strong>${node ? node.title : "选择节点"}</strong>
+        </button>
+      </aside>
+    `;
+  }
+  if (!node) {
+    return `
+      <aside class="assistant-drawer expanded empty">
+        <div class="assistant-empty">
+          <h2>选择一个节点</h2>
+          <p class="muted">点击时间线或地图上的任意节点，在这里继续问 AI、手动编辑，或预览修改。</p>
+          <button class="ghost-btn" data-action="collapse-assistant">收起</button>
+        </div>
+      </aside>
+    `;
+  }
   const mode = state.drawerMode;
   return `
-    <aside class="drawer">
-      <div class="drawer-head">
+    <aside class="assistant-drawer expanded">
+      <div class="assistant-head">
         <div>
           <span class="tag">${nodeLabel(node.type)}</span>
           <h2>${node.title}</h2>
           <p class="muted">${node.time} · ${node.location}</p>
         </div>
-        <button class="icon-btn" data-action="close-drawer" aria-label="关闭">×</button>
+        <button class="ghost-btn" data-action="collapse-assistant">收起</button>
       </div>
 
-      <div class="drawer-actions">
-        <button class="small-btn" data-action="drawer-mode" data-mode="ask">问这里玩什么</button>
-        <button class="small-btn" data-action="drawer-mode" data-mode="replace">找 3 个替代</button>
-        <button class="small-btn" data-action="drawer-mode" data-mode="manual">手动编辑</button>
-        ${node.type === "transport" ? `<button class="small-btn" data-action="drawer-mode" data-mode="transport">交通选择</button>` : ""}
-        ${node.type === "hotel" ? `<button class="small-btn" data-action="drawer-mode" data-mode="booking">预订详情</button>` : ""}
+      <div class="assistant-actions">
+        <button class="small-btn ${mode === "assist" ? "active" : ""}" data-action="drawer-mode" data-mode="assist">问问 AI</button>
+        <button class="small-btn ${mode === "manual" ? "active" : ""}" data-action="drawer-mode" data-mode="manual">手动编辑</button>
+        ${node.type === "hotel" ? `<button class="small-btn ${mode === "booking" ? "active" : ""}" data-action="drawer-mode" data-mode="booking">预订</button>` : ""}
       </div>
 
       ${renderDrawerBody(node, mode)}
@@ -527,21 +557,54 @@ function renderDrawer(node) {
 
 function renderDrawerBody(node, mode) {
   if (mode === "manual") return renderManualEditor(node);
-  if (mode === "replace") return renderReplacements(node);
-  if (mode === "transport") return renderTransportChoices(node);
   if (mode === "booking") return renderBookingDetails(node);
-  return renderAskPanel(node);
+  if (state.pendingProposal?.nodeId === node.id) return renderProposalPreview(node);
+  return renderAssistPanel(node);
 }
 
-function renderAskPanel(node) {
+function renderAssistPanel(node) {
+  const suggestions = intentSuggestions(node);
   return `
     <div class="ai-box">
-      <strong>AI 对这个节点的理解</strong>
+      <strong>想怎么调整这里？</strong>
       <p class="muted">${nodeInsight(node)}</p>
-      <textarea placeholder="例如：这里有什么好玩的？适合待多久？如果下雨怎么办？"></textarea>
+      <div class="intent-chips">
+        ${suggestions.map((item) => `<button class="chip" data-action="intent-chip" data-value="${escapeAttr(item)}">${item}</button>`).join("")}
+      </div>
+      <textarea id="node-intent" placeholder="比如：这里会不会太赶？换个更安静的？下雨怎么办？"></textarea>
       <div class="prompt-actions">
-        <span class="field-hint">原型会模拟回答，真实版本接 LLM 和地点数据。</span>
-        <button class="primary-btn" data-action="mock-answer">询问</button>
+        <span class="field-hint">AI 会判断是回答、推荐候选，还是生成修改预览。</span>
+        <button class="primary-btn" data-action="mock-answer">发送</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderProposalPreview(node) {
+  const proposal = state.pendingProposal;
+  const replacement = proposal.replacement;
+  return `
+    <div class="proposal-preview">
+      <span class="tag">修改预览</span>
+      <h3>${proposal.title}</h3>
+      <div class="preview-swap">
+        <div>
+          <span class="muted">当前</span>
+          <strong>${node.title}</strong>
+          <p>${node.detail}</p>
+        </div>
+        <div>
+          <span class="muted">建议</span>
+          <strong>${replacement.title}</strong>
+          <p>${replacement.reason}</p>
+        </div>
+      </div>
+      <div class="impact-list">
+        ${proposal.impact.map((item) => `<div>${item}</div>`).join("")}
+      </div>
+      <div class="prompt-actions">
+        <button class="ghost-btn" data-action="cancel-proposal">取消</button>
+        <button class="primary-btn" data-action="accept-proposal">应用修改</button>
       </div>
     </div>
   `;
@@ -624,7 +687,7 @@ function renderBookingDetails(node) {
     <div class="hotel-card">
       <h3>${node.booked ? "预订详情" : "待预订"}</h3>
       <p class="muted">${node.booked ? "确认号：DEMO-0926 · 入住凭证可在这里快速查阅。" : "确认预订后，这里会显示订单号、入住时间、取消截止日期和原平台跳转。"}</p>
-      <div class="drawer-actions">
+      <div class="assistant-actions">
         <button class="primary-btn" data-action="toggle-booked">${node.booked ? "改为未确认" : "标记已预订"}</button>
         <button class="ghost-btn" data-action="open-navigation">跳转原平台</button>
       </div>
@@ -660,6 +723,39 @@ function nodeInsight(node) {
   return "这个地点适合从体验内容、停留时间、替代点位和天气风险几个维度编辑。";
 }
 
+function planDecision(plan) {
+  return {
+    "relaxed-onsen": {
+      bestFor: "想要温泉、美食和低压力移动的第一次验证。",
+      watch: "由布院住宿和指定席需要提前确认。",
+    },
+    "food-city": {
+      bestFor: "想少换酒店，把预算花在餐厅和城市散步上。",
+      watch: "自然风景会少一些，适合把体验做深。",
+    },
+    "nature-kyushu": {
+      bestFor: "想要更丰富风景，能接受每天多一点移动。",
+      watch: "交通衔接和行李安排需要更仔细。",
+    },
+  }[plan.id];
+}
+
+function daySummary(day) {
+  const transportCount = day.nodes.filter((node) => node.type === "transport").length;
+  const hasHotel = day.nodes.some((node) => node.type === "hotel");
+  if (day.id === "day-1") return "落地日保持轻松，先确认机场到酒店和晚餐距离就好。";
+  if (day.id === "day-2") return "城市散步为主，路线短，适合根据天气临时替换室内点。";
+  if (day.id === "day-3") return "温泉日重点在交通和入住时间，别把下午塞得太满。";
+  return `${transportCount} 段移动${hasHotel ? "，含住宿安排" : ""}，适合先看节奏再细改。`;
+}
+
+function intentSuggestions(node) {
+  if (node.type === "transport") return ["会不会太赶", "换个更稳的交通", "省点预算"];
+  if (node.type === "hotel") return ["位置合适吗", "换个更方便的区域", "标记已预订"];
+  if (node.type === "meal") return ["附近更好吃的", "排队风险", "换个轻松晚餐"];
+  return ["下雨怎么办", "换个更安静的", "适合待多久"];
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -672,18 +768,33 @@ function escapeAttr(value) {
   return escapeHtml(value).replaceAll("'", "&#039;");
 }
 
-function openNode(nodeId, mode = "ask") {
+function openNode(nodeId, mode = "assist") {
   state.activeNodeId = nodeId;
   state.drawerMode = mode;
+  state.assistantCollapsed = false;
+  state.pendingProposal = null;
   saveState();
   render();
 }
 
 function setDay(dayId) {
   state.activeDayId = dayId;
-  const day = getActiveDay();
-  state.activeNodeId = day.nodes[0]?.id || null;
-  state.drawerMode = "ask";
+  state.activeNodeId = null;
+  state.drawerMode = "assist";
+  state.assistantCollapsed = true;
+  state.pendingProposal = null;
+  saveState();
+  render();
+}
+
+function collapseAssistant() {
+  state.assistantCollapsed = true;
+  saveState();
+  render();
+}
+
+function expandAssistant() {
+  state.assistantCollapsed = false;
   saveState();
   render();
 }
@@ -691,14 +802,40 @@ function setDay(dayId) {
 function applyReplacement(index) {
   const node = getActiveNode();
   if (!node) return;
-  const pool = state.drawerMode === "transport" ? replacementPools.transport : replacementPools[node.type] || replacementPools.place;
+  const pool = node.type === "transport" ? replacementPools.transport : replacementPools[node.type] || replacementPools.place;
   const replacement = pool[Number(index)];
   if (!replacement) return;
 
+  state.pendingProposal = {
+    nodeId: node.id,
+    replacement,
+    title: `把「${node.title}」调整为「${replacement.title}」`,
+    impact: proposalImpact(node, replacement),
+  };
+  state.drawerMode = "assist";
+  state.assistantCollapsed = false;
+  saveState();
+  render();
+}
+
+function proposalImpact(node, replacement) {
+  const impact = ["正式行程不会立刻改变，应用后才会写入当前节点。"];
+  if (node.type === "transport") impact.push("可能影响当天到达时间，后续会重新检查相邻节点。");
+  if (node.type === "hotel") impact.push("会影响之后每天出发和返回路线。");
+  if (replacement.meta.includes("¥")) impact.push(`参考成本：${replacement.meta}`);
+  return impact;
+}
+
+function acceptProposal() {
+  const node = getActiveNode();
+  const proposal = state.pendingProposal;
+  if (!node || proposal?.nodeId !== node.id) return;
+  const replacement = proposal.replacement;
   node.title = replacement.title;
   node.detail = replacement.reason;
   node.duration = replacement.meta.split("·")[2]?.trim() || node.duration;
   node.booked = false;
+  state.pendingProposal = null;
   saveState();
   render();
 }
@@ -715,6 +852,51 @@ function saveNodeEdits() {
   render();
 }
 
+function fillIntent(value) {
+  const input = document.querySelector("#node-intent");
+  if (input) input.value = value;
+}
+
+function renderMockAnswer() {
+  const node = getActiveNode();
+  if (!node) return;
+  const box = document.querySelector(".ai-box");
+  if (!box || box.querySelector(".mock-answer")) return;
+  const intent = document.querySelector("#node-intent")?.value.trim() || "";
+  const asksForChange = /换|替|改|省|更稳|更方便|更安静|预算/.test(intent);
+
+  if (asksForChange) {
+    const pool = node.type === "transport" ? replacementPools.transport : replacementPools[node.type] || replacementPools.place;
+    box.insertAdjacentHTML(
+      "beforeend",
+      `<div class="option-list mock-answer">
+        ${pool
+          .map(
+            (option, index) => `
+          <article class="option-card">
+            <div class="place-row">
+              <div>
+                <h3>${option.title}</h3>
+                <p class="muted">${option.meta}</p>
+              </div>
+              <button class="primary-btn" data-action="apply-replacement" data-index="${index}">预览</button>
+            </div>
+            <p>${option.reason}</p>
+          </article>
+        `,
+          )
+          .join("")}
+      </div>`,
+    );
+    return;
+  }
+
+  box.insertAdjacentHTML(
+    "beforeend",
+    `<p class="mock-answer"><strong>模拟回答：</strong>这一步主要看它和前后节点的距离、天气风险、预约必要性和体力消耗。你也可以直接说“换个更轻松的”，我会先给出修改预览，不会立刻改行程。</p>`,
+  );
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target.closest("[data-action]");
   if (!target) return;
@@ -727,24 +909,26 @@ document.addEventListener("click", (event) => {
     render();
   }
 
-  if (action === "generate-plans" || action === "regenerate-plans") {
+  if (action === "send-intake") {
     state.prompt = document.querySelector("#trip-prompt")?.value.trim() || state.prompt;
-    state.generated = true;
+    state.intakeReady = true;
     state.chat.push({ role: "user", text: state.prompt });
     state.chat.push({
       role: "agent",
-      text: "我先给你 3 个方向：一个轻松温泉线、一个城市美食线、一个自然风景线。选一个进入 Trip Board 后，我们再按天和节点细改。",
+      text: "信息够了：目的地、天数、预算、同行人和偏好都能支撑第一版行程。我先生成一个可编辑 Trip Board，进去后我们再按天和节点细改。",
     });
     saveState();
     render();
   }
 
-  if (action === "enter-board") {
-    state.selectedPlanId = target.dataset.planId;
+  if (action === "start-plan") {
+    state.selectedPlanId = "relaxed-onsen";
     state.screen = "board";
     state.activeDayId = "day-1";
-    state.activeNodeId = "n1";
-    state.drawerMode = "ask";
+    state.activeNodeId = null;
+    state.drawerMode = "assist";
+    state.assistantCollapsed = true;
+    state.pendingProposal = null;
     saveState();
     render();
   }
@@ -756,17 +940,10 @@ document.addEventListener("click", (event) => {
   }
 
   if (action === "set-day") setDay(target.dataset.dayId);
-  if (action === "open-node") openNode(target.dataset.nodeId, "ask");
-  if (action === "edit-node") openNode(target.dataset.nodeId, "manual");
-  if (action === "ask-node") openNode(target.dataset.nodeId, "ask");
-  if (action === "transport-node") openNode(target.dataset.nodeId, "transport");
-  if (action === "booking-node") openNode(target.dataset.nodeId, "booking");
+  if (action === "open-node") openNode(target.dataset.nodeId, "assist");
 
-  if (action === "close-drawer") {
-    state.activeNodeId = null;
-    saveState();
-    render();
-  }
+  if (action === "collapse-assistant") collapseAssistant();
+  if (action === "expand-assistant") expandAssistant();
 
   if (action === "drawer-mode") {
     state.drawerMode = target.dataset.mode;
@@ -775,6 +952,15 @@ document.addEventListener("click", (event) => {
   }
 
   if (action === "apply-replacement") applyReplacement(target.dataset.index);
+  if (action === "accept-proposal") acceptProposal();
+
+  if (action === "cancel-proposal") {
+    state.pendingProposal = null;
+    saveState();
+    render();
+  }
+
+  if (action === "intent-chip") fillIntent(target.dataset.value);
 
   if (action === "save-node") saveNodeEdits();
 
@@ -788,13 +974,7 @@ document.addEventListener("click", (event) => {
   }
 
   if (action === "mock-answer") {
-    const box = document.querySelector(".ai-box");
-    if (box && !box.querySelector(".mock-answer")) {
-      box.insertAdjacentHTML(
-        "beforeend",
-        `<p class="mock-answer"><strong>模拟回答：</strong>这里最值得关注的是它和前后节点的距离、是否受天气影响、是否需要预约。你可以直接让我换 3 个替代点，我会排除当前行程里已经出现的内容。</p>`,
-      );
-    }
+    renderMockAnswer();
   }
 
   if (action === "shuffle-options") {
@@ -809,13 +989,16 @@ document.addEventListener("click", (event) => {
 
   if (action === "ask-overall") {
     state.activeNodeId = getActiveDay().nodes[0]?.id || null;
-    state.drawerMode = "ask";
+    state.drawerMode = "assist";
+    state.assistantCollapsed = false;
     saveState();
     render();
   }
 
   if (action === "confirm-plan") {
     state.itinerary.forEach((day) => day.nodes.forEach((node) => (node.booked = node.booked || node.type === "place" || node.type === "meal")));
+    const remaining = state.itinerary.flatMap((day) => day.nodes).filter((node) => !node.booked).length;
+    state.draftNotice = `行程草稿已保存。还有 ${remaining} 项酒店或交通需要确认。`;
     saveState();
     render();
   }
@@ -826,6 +1009,13 @@ document.addEventListener("input", (event) => {
     state.prompt = event.target.value;
     saveState();
   }
+});
+
+document.addEventListener("keydown", (event) => {
+  const target = event.target.closest?.(".node-card[data-action='open-node']");
+  if (!target || (event.key !== "Enter" && event.key !== " ")) return;
+  event.preventDefault();
+  openNode(target.dataset.nodeId, "assist");
 });
 
 render();
