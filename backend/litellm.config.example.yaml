@@ -1,0 +1,9 @@
+model_list:
+  - model_name: travel-primary
+    litellm_params:
+      model: zai/glm-4.7-flash
+      api_key: os.environ/ZAI_API_KEY
+
+
+general_settings:
+  master_key: local-proxy-key

@@ -7,7 +7,11 @@ from app.core.config import get_settings
 def build_litellm_model() -> LitellmModel:
     settings = get_settings()
     api_key = settings.litellm_api_key or settings.openai_api_key
-    return LitellmModel(model=settings.litellm_model, api_key=api_key)
+    return LitellmModel(
+        model=settings.litellm_model,
+        base_url=settings.litellm_base_url,
+        api_key=api_key,
+    )
 
 
 def build_run_config() -> RunConfig:
