@@ -3,6 +3,8 @@
 AI-native travel planning MVP focused on conversational intake, an editable Trip
 Board, map visualization, and proposal-first AI assistance.
 
+[中文说明](README.zh-CN.md)
+
 ## Workspace Layout
 
 ```text
@@ -48,8 +50,25 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-Copy `backend/.env.example` to `backend/.env` and configure
-`LITELLM_MODEL`, `LITELLM_API_KEY`, or `OPENAI_API_KEY` before real agent calls.
+Copy `backend/.env.example` to `backend/.env` and configure the LiteLLM Proxy
+connection:
+
+```env
+LITELLM_MODEL=travel-primary
+LITELLM_BASE_URL=http://127.0.0.1:4000
+LITELLM_API_KEY=local-proxy-key
+```
+
+Start LiteLLM Proxy with:
+
+```bash
+cd backend
+litellm --config litellm.config.example.yaml
+```
+
+Provider keys, such as `ZAI_API_KEY`, should be supplied through your local shell
+or deployment secrets. Direct LiteLLM provider routing remains available by
+leaving `LITELLM_BASE_URL` empty.
 
 ## Design
 
