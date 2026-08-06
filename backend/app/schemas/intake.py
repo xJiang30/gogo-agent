@@ -21,3 +21,8 @@ class IntakeResponse(BaseModel):
     fields: IntakeFields
     missing_fields: list[str]
     assistant_message: str
+
+
+class IntakeInspection(BaseModel):
+    ready: bool
+    missing_fields: list[str]
