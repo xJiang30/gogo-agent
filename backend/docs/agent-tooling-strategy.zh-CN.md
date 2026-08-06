@@ -42,7 +42,7 @@ Tool search 适合工具很多、模型需要按需加载工具 schema 的场景
 
 ## Agents As Tools
 
-Agents-as-tools 未来很适合，但不是下一层马上要加的东西。
+等 Trip Board schema 稳定后，agents-as-tools 是首选的专家能力模式。
 
 当一个面向用户的 Gogo Agent 仍然需要掌控整体体验，同时把边界清晰的任务交给专家 Agent 时，可以使用这个模式。比较适合的候选包括：
 
@@ -52,6 +52,8 @@ Agents-as-tools 未来很适合，但不是下一层马上要加的东西。
 - Food Sense：建议餐食锚点，但不过度塞满行程。
 
 用户感受到的应该是一个助手背后有专家判断，而不是被多个可见 Agent 来回交接。
+
+普通旅行规划里不要使用可见 handoff。Handoff 会改变当前由哪个 Agent 接管对话，容易让体验变重。除非未来某个流程有明确的合规、客服或运营边界，否则专家能力都应该保持在内部。
 
 ## 当前边界
 

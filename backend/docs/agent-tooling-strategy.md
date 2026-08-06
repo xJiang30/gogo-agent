@@ -53,7 +53,8 @@ workflows.
 
 ## Agents As Tools
 
-Agents-as-tools are a good future fit, but not the next immediate layer.
+Agents-as-tools are the preferred specialist pattern once Trip Board schemas are
+stable.
 
 Use this pattern when one user-facing Gogo Agent should stay in control while
 delegating bounded work to specialist agents. Good candidates include:
@@ -65,6 +66,11 @@ delegating bounded work to specialist agents. Good candidates include:
 
 This should feel like one assistant with specialist judgment behind it, not
 like the user is being handed between several visible agents.
+
+Do not use visible handoffs for ordinary travel planning. A handoff changes
+which agent owns the conversation, which can make the experience feel heavier
+than the product intends. Keep specialists internal unless a future workflow has
+a clear compliance, support, or operational boundary.
 
 ## Current Boundary
 
