@@ -1,6 +1,5 @@
 from agents import Agent
 
-from app.providers.llm import build_litellm_model
 from app.schemas.intake import IntakeResponse
 
 
@@ -13,6 +12,5 @@ def create_travel_advisor() -> Agent:
             "destination, dates, travelers, budget, and preferences. "
             "Return structured intake results and do not mutate trip state."
         ),
-        model=build_litellm_model(),
         output_type=IntakeResponse,
     )

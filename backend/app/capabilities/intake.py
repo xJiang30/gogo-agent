@@ -1,6 +1,5 @@
 from app.schemas.intake import IntakeFields
 
-
 REQUIRED_INTAKE_FIELDS = (
     "destination",
     "duration",
