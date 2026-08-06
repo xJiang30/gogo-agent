@@ -11,11 +11,13 @@ class IntakeFields(BaseModel):
 
 class IntakeRequest(BaseModel):
     message: str
+    session_id: str | None = None
     fields: IntakeFields = Field(default_factory=IntakeFields)
 
 
 class IntakeResponse(BaseModel):
     ready: bool
+    session_id: str | None = None
     fields: IntakeFields
     missing_fields: list[str]
     assistant_message: str

@@ -9,6 +9,7 @@ The backend owns:
 - Trip and proposal API boundaries
 - OpenAI Agents SDK agent definitions
 - LiteLLM model routing through one provider module
+- Agents SDK session memory for multi-turn planning conversations
 - Shared deterministic travel capabilities
 
 ## Commands
@@ -46,6 +47,7 @@ Then keep the backend pointed at the stable proxy alias:
 LITELLM_MODEL=travel-primary
 LITELLM_BASE_URL=http://127.0.0.1:4000
 LITELLM_API_KEY=local-proxy-key
+AGENT_SESSION_DB_PATH=.data/agent_sessions.db
 ```
 
 To switch the underlying model, change `travel-primary` in the LiteLLM config
@@ -66,3 +68,11 @@ dependency lists.
 
 LiteLLM is capped below `1.75.0` for now to keep the local install lightweight
 and avoid unexpectedly pulling a source build that needs Rust on macOS.
+
+## Agent Sessions
+
+The intake chat now runs through `Runner.run(...)` with an Agents SDK session.
+Clients can pass `session_id` on `/chat/intake`; when it is omitted, the backend
+generates one and returns it in the response. Local development uses
+`SQLiteSession` at `AGENT_SESSION_DB_PATH`, while Trip Board state should remain
+in the application data model instead of being hidden only in chat memory.

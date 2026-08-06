@@ -11,6 +11,7 @@
 - Trip 和 Proposal 的 API 边界
 - OpenAI Agents SDK 的 Agent 定义
 - 通过一个 provider 模块统一接入 LiteLLM
+- 用 Agents SDK session memory 支撑多轮规划对话
 - 共享的确定性旅行能力
 
 ## 当前架构
@@ -65,6 +66,7 @@ litellm --config litellm.config.example.yaml
 LITELLM_MODEL=travel-primary
 LITELLM_BASE_URL=http://127.0.0.1:4000
 LITELLM_API_KEY=local-proxy-key
+AGENT_SESSION_DB_PATH=.data/agent_sessions.db
 ```
 
 要切换底层模型时，修改 LiteLLM 配置里的 `travel-primary` 指向即可，不需要改 Agent
@@ -84,3 +86,10 @@ ZAI_API_KEY=...
 
 LiteLLM 目前限制在 `1.75.0` 以下，是为了保持本地安装轻量，避免 macOS 上意外拉取
 需要 Rust 的源码构建。
+
+## Agent 会话
+
+intake 对话现在通过带 session 的 `Runner.run(...)` 执行。客户端调用
+`/chat/intake` 时可以传入 `session_id`；如果没有传，后端会生成一个并在响应中返回。
+本地开发默认使用 `AGENT_SESSION_DB_PATH` 指向的 `SQLiteSession`。Trip Board 这种业务
+状态仍然应该放在应用自己的数据模型里，而不是只藏在聊天记忆中。

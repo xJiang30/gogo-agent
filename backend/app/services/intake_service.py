@@ -2,6 +2,7 @@ from agents import Runner
 
 from app.agents.travel_advisor import create_travel_advisor
 from app.providers.llm import build_run_config
+from app.providers.session import generate_session_id, get_agent_session
 from app.schemas.intake import IntakeRequest, IntakeResponse
 
 
@@ -16,9 +17,13 @@ def _build_intake_prompt(request: IntakeRequest) -> str:
 
 
 async def collect_trip_intake(request: IntakeRequest) -> IntakeResponse:
+    session_id = request.session_id or generate_session_id()
     result = await Runner.run(
         create_travel_advisor(),
         _build_intake_prompt(request),
         run_config=build_run_config(),
+        session=get_agent_session(session_id),
     )
-    return result.final_output_as(IntakeResponse, raise_if_incorrect_type=True)
+    response = result.final_output_as(IntakeResponse, raise_if_incorrect_type=True)
+    response.session_id = session_id
+    return response

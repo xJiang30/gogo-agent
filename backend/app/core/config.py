@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     litellm_base_url: str | None = "http://127.0.0.1:4000"
     litellm_api_key: str | None = None
     openai_api_key: str | None = None
+    agent_session_db_path: str = ".data/agent_sessions.db"
     enable_agent_tracing: bool = False
 
     @field_validator("litellm_base_url", "litellm_api_key", "openai_api_key", mode="before")
