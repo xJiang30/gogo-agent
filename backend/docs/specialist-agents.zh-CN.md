@@ -111,6 +111,21 @@ TravelAdvisor
   -> 用户确认后再修改 Trip Board
 ```
 
+## 确认流程
+
+用户体验上应该像 Agent interruption：Gogo Agent 提出一个调整，界面展示轻量确认控件，用户确认后对话继续往下走。
+
+后端执行上仍然使用明确的 proposal/apply 边界：
+
+```text
+proposal created with requires_approval=true
+  -> 用户确认
+  -> application service 应用 mutations
+  -> 响应才可以真实地说“已应用”
+```
+
+这样既保留轻量的 UI 体验，又避免模型只靠一句“我改好了”就修改 Trip Board 状态。
+
 ## 非目标
 
 - 不在 UI 中创建可见专家人格。

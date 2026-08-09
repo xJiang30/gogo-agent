@@ -119,6 +119,24 @@ TravelAdvisor
   -> user approval before Trip Board mutation
 ```
 
+## Approval Flow
+
+User experience should feel like an agent interruption: Gogo Agent proposes a
+change, the interface shows a lightweight confirmation control, and the
+conversation continues after approval.
+
+Backend execution still uses an explicit proposal/apply boundary:
+
+```text
+proposal created with requires_approval=true
+  -> user approves
+  -> application service applies mutations
+  -> response can truthfully say "applied"
+```
+
+This keeps the UI lightweight while preventing the model from mutating Trip
+Board state just by saying it did.
+
 ## Non-Goals
 
 - Do not create visible specialist personas in the UI.

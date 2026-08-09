@@ -1,5 +1,6 @@
 from agents import Agent
 
+from app.agents.guardrails.trip_board import proposal_only_output_guardrail
 from app.agents.tools.intake import inspect_intake_fields
 from app.schemas.intake import IntakeResponse
 
@@ -16,5 +17,6 @@ def create_travel_advisor() -> Agent:
             "and do not mutate trip state."
         ),
         tools=[inspect_intake_fields],
+        output_guardrails=[proposal_only_output_guardrail],
         output_type=IntakeResponse,
     )
