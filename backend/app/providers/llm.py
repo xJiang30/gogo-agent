@@ -14,5 +14,25 @@ def build_litellm_model() -> LitellmModel:
     )
 
 
-def build_run_config() -> RunConfig:
-    return RunConfig(model=build_litellm_model())
+def build_run_config(
+    *,
+    session_id: str | None = None,
+    workflow_name: str = "gogo-agent",
+) -> RunConfig:
+    settings = get_settings()
+    trace_metadata = {
+        "app_name": settings.app_name,
+        "app_env": settings.app_env,
+        "litellm_model": settings.litellm_model,
+    }
+    if session_id is not None:
+        trace_metadata["session_id"] = session_id
+
+    return RunConfig(
+        model=build_litellm_model(),
+        tracing_disabled=not settings.enable_agent_tracing,
+        trace_include_sensitive_data=False,
+        workflow_name=workflow_name,
+        group_id=session_id,
+        trace_metadata=trace_metadata,
+    )

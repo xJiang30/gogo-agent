@@ -7,6 +7,10 @@ from app.schemas.intake import IntakeFields, IntakeRequest, IntakeResponse
 from app.services import intake_service
 
 
+def build_test_run_config(*, session_id: str, workflow_name: str):
+    return (session_id, workflow_name)
+
+
 def test_collect_trip_intake_returns_agent_structured_output(monkeypatch):
     expected_session = object()
     expected = IntakeResponse(
@@ -31,16 +35,14 @@ def test_collect_trip_intake_returns_agent_structured_output(monkeypatch):
             "我想 9 月从上海出发去日本 5-6 天，两个人，预算 8000-10000，"
             "想要温泉、美食、自然风景，不想每天太赶。"
         ) in input
-        assert run_config == "test-run-config"
+        assert run_config == ("trip-session-1", "gogo-agent-intake")
         assert session is expected_session
         return SimpleNamespace(
             final_output_as=lambda cls, raise_if_incorrect_type=False: expected
         )
 
     monkeypatch.setattr(intake_service.Runner, "run", run_agent)
-    monkeypatch.setattr(
-        intake_service, "build_run_config", lambda: "test-run-config"
-    )
+    monkeypatch.setattr(intake_service, "build_run_config", build_test_run_config)
     monkeypatch.setattr(
         intake_service, "get_agent_session", lambda session_id: expected_session
     )
@@ -72,6 +74,7 @@ def test_collect_trip_intake_generates_session_id_when_missing(monkeypatch):
 
     async def run_agent(agent, input, *, run_config, session):
         assert session is expected_session
+        assert run_config == ("generated-1", "gogo-agent-intake")
         return SimpleNamespace(
             final_output_as=lambda cls, raise_if_incorrect_type=False: expected
         )
@@ -81,9 +84,7 @@ def test_collect_trip_intake_generates_session_id_when_missing(monkeypatch):
         return expected_session
 
     monkeypatch.setattr(intake_service.Runner, "run", run_agent)
-    monkeypatch.setattr(
-        intake_service, "build_run_config", lambda: "test-run-config"
-    )
+    monkeypatch.setattr(intake_service, "build_run_config", build_test_run_config)
     monkeypatch.setattr(intake_service, "generate_session_id", lambda: "generated-1")
     monkeypatch.setattr(intake_service, "get_agent_session", get_session)
 
@@ -108,9 +109,7 @@ def test_collect_trip_intake_rejects_non_intake_agent_output(monkeypatch):
         return WrongOutputResult()
 
     monkeypatch.setattr(intake_service.Runner, "run", run_agent)
-    monkeypatch.setattr(
-        intake_service, "build_run_config", lambda: "test-run-config"
-    )
+    monkeypatch.setattr(intake_service, "build_run_config", build_test_run_config)
     monkeypatch.setattr(
         intake_service, "get_agent_session", lambda session_id: object()
     )

@@ -21,7 +21,10 @@ async def collect_trip_intake(request: IntakeRequest) -> IntakeResponse:
     result = await Runner.run(
         create_travel_advisor(),
         _build_intake_prompt(request),
-        run_config=build_run_config(),
+        run_config=build_run_config(
+            session_id=session_id,
+            workflow_name="gogo-agent-intake",
+        ),
         session=get_agent_session(session_id),
     )
     response = result.final_output_as(IntakeResponse, raise_if_incorrect_type=True)
