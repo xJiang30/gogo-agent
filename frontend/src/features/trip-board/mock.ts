@@ -1,0 +1,82 @@
+import type { TripBoard } from './model'
+
+export const mockTripBoards: TripBoard[] = [
+  {
+    id: 'trip-kyushu',
+    title: '九州轻量行程',
+    destination: '日本 / 九州',
+    days: [
+      {
+        id: 'day-1',
+        label: 'Day 1',
+        date: '9月10日',
+        title: '抵达福冈',
+        nodes: [
+          {
+            id: 'arrival',
+            kind: 'transport',
+            time: '13:10',
+            title: '抵达福冈机场',
+            location: 'FUK',
+            duration: '45 分钟',
+            detail: '入境后乘地铁前往博多站，先不要安排重景点。',
+            booked: false,
+            position: { x: 23, y: 68 },
+          },
+          {
+            id: 'hotel',
+            kind: 'hotel',
+            time: '15:00',
+            title: 'Hotel Vista Hakata 入住',
+            location: '博多站',
+            duration: '3 晚',
+            detail: '作为福冈段基地，步行到车站约 6 分钟。',
+            booked: false,
+            position: { x: 43, y: 50 },
+          },
+          {
+            id: 'dinner',
+            kind: 'meal',
+            time: '18:30',
+            title: '天神拉面晚餐',
+            location: '天神',
+            duration: '90 分钟',
+            detail: '落地第一晚保持轻松，餐后可短距离散步。',
+            booked: false,
+            position: { x: 62, y: 43 },
+          },
+        ],
+      },
+      {
+        id: 'day-2',
+        label: 'Day 2',
+        date: '9月11日',
+        title: '福冈城市轻探索',
+        nodes: [
+          {
+            id: 'park',
+            kind: 'place',
+            time: '10:00',
+            title: '大濠公园',
+            location: '中央区',
+            duration: '90 分钟',
+            detail: '轻松散步，适合调整节奏；雨天可替换为美术馆。',
+            booked: false,
+            position: { x: 33, y: 38 },
+          },
+          {
+            id: 'old-town',
+            kind: 'place',
+            time: '14:00',
+            title: '博多老街区散步',
+            location: '祇园 / 博多',
+            duration: '2 小时',
+            detail: '和下午茶、伴手礼顺路，适合慢节奏探索。',
+            booked: false,
+            position: { x: 54, y: 55 },
+          },
+        ],
+      },
+    ],
+  },
+]
